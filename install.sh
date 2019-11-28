@@ -7,7 +7,7 @@ usage() {
   echo "$runtimes" >&2
 }
 
-deploy-ubuntu-16.04-docker(){
+deploy-ubuntu-16-04-docker(){
   # turn off swap
   swapoff -a
 
@@ -41,7 +41,7 @@ if [ ! -f $osfile ]; then
 fi
 
 osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z')
-osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"')
+osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '-')
 
 osfull=${osname}-${osrelease}
 
