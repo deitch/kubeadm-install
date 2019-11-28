@@ -7,7 +7,7 @@ usage() {
   echo "$runtimes" >&2
 }
 
-deploy-ubuntu-16-04-docker(){
+deploy_ubuntu_16_04_docker(){
   # turn off swap
   swapoff -a
 
@@ -41,9 +41,9 @@ if [ ! -f $osfile ]; then
 fi
 
 osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z')
-osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '-')
+osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '_')
 
-osfull=${osname}-${osrelease}
+osfull=${osname}_${osrelease}
 
 runtime=$1
 
@@ -58,7 +58,7 @@ if [ -z "$found" ]; then
 fi
 
 
-funcname="deploy-${osfull}-${runtime}"
+funcname="deploy_${osfull}_${runtime}"
 if command -V "${funcname}" >/dev/null 2>&1; then
   ${funcname}
 else
