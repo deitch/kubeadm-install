@@ -3,7 +3,7 @@
 Repository with simple scripts to install docker and kubernetes on various node types. To install:
 
 ```sh
-curl https://github.com/deitch/kubeadm-install/install.sh | sh - <runtime>
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime>
 ```
 
 where:
