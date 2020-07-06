@@ -8,6 +8,17 @@ usage() {
 }
 
 deploy_ubuntu_16_04_docker(){
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+}
+deploy_ubuntu_18_04_docker(){
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+}
+deploy_ubuntu_20_04_docker(){
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+}
+deploy_ubuntu_multiple_docker(){
+  local dockername="$1"
+  local kubernetesname="$2"
   # turn off swap
   swapoff -a
 
@@ -16,7 +27,7 @@ deploy_ubuntu_16_04_docker(){
   apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
   apt-key fingerprint 0EBFCD88
-  add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+  add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $dockername stable"
   apt-get update -y
   apt-get install -y docker-ce docker-ce-cli containerd.io
 
@@ -25,7 +36,7 @@ deploy_ubuntu_16_04_docker(){
   apt-get install -y apt-transport-https curl
   curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
   cat <<EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
-deb https://apt.kubernetes.io/ kubernetes-xenial main
+deb https://apt.kubernetes.io/ kubernetes-${kubernetesname} main
 EOF
   apt-get update -y
   apt-get install -y kubelet kubeadm kubectl
@@ -53,6 +64,7 @@ if [ "$runtime" = "" ]; then
   usage
   exit 1
 fi
+
 found=$(echo $runtimes | grep -w $runtime 2>/dev/null)
 if [ -z "$found" ]; then
   echo "unsupported runtime $runtime" >&2
@@ -71,6 +83,8 @@ fi
 # report how to start a control plane or join
 echo "If starting a new cluster, run:"
 echo "  kubeadm init"
+echo
+echo "You might want to change your kubeadm config first"
 echo
 echo "Then install your networking"
 echo
