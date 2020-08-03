@@ -73,6 +73,7 @@ We will use this information to join every other node.
 If we want to add any other control plane nodes, we create a config file `/etc/kubernetes/kubeadm.yaml` with the following information:
 
 ```yaml
+apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 nodeRegistration:
   kubeletExtraArgs:
