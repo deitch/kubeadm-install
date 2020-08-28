@@ -10,6 +10,7 @@ usage() {
   echo "where <advertise address> is the advertising address for init mode, e.g. 147.75.78.157:6443">&2
   echo "where <bootstrap> is the bootstrap information for join and worker modes, IP and port and token, e.g. 147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso" >&2
   echo "where <caCert> is the CA cert hashes for join and worker modes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
+  exit 10
 }
 
 
