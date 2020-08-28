@@ -58,6 +58,10 @@ generate_kubeadm_config(){
   case $mode in
     "init")
       advertise="$3"
+      if [ -z "$advertise" ]; then
+        echo "mode init had no valid advertise address" >&2
+        usage
+      fi
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
@@ -83,6 +87,14 @@ EOF
       bootstrap="$3"
       certs="$4"
       advertise=${bootstrap%:*}
+      if [ -z "$bootstrap" ]; then
+        echo "mode join had no valid bootstrap address" >&2
+        usage
+      fi
+      if [ -z "$certs" ]; then
+        echo "mode join had no valid certs address" >&2
+        usage
+      fi
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
@@ -104,6 +116,14 @@ EOF
     "join")
       bootstrap="$3"
       certs="$4"
+      if [ -z "$bootstrap" ]; then
+        echo "mode worker had no valid bootstrap address" >&2
+        usage
+      fi
+      if [ -z "$certs" ]; then
+        echo "mode worker had no valid certs address" >&2
+        usage
+      fi
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
