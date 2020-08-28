@@ -1,60 +1,47 @@
 # kubeadm-install
 
-Repository with simple scripts to install docker and kubernetes on various node types. To install:
+Repository with simple scripts to install docker and kubernetes on various node types, and prepare for kubadm.
+
+# TL;DR
 
 ```sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime>
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> <mode> [<advertise address>] [bootstrap] [caCert]
 ```
 
 where:
 
 * `runtime` - is the container runtime to use, currently supports: `docker`
+* `mode` - is the installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`
+* `advertise address` - IP:port to use as the advertise address, relevant only on initial control plane node
+* `bootstrap` - bootstrap information, relevant only in `join` and `worker` modes, formatted as `<IP>:<port>:<token>`, e.g. `147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso`
+* `caCert` - ca certificate hashes, comma-separated, relevant only in `join` and `worker` modes, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
+
+Valid formats:
+
+```console
+# initialize control plane, just requires advertise address
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker init 100.100.50.10:6443
+
+# join control plane, requires advertise address, control plane address and token, and ca cert hashes
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker join 100.100.50.10:6443:36ah6j.nv8myy52hpyy5gso sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
+
+# join worker, requires control plane address and token, and ca cert hashes
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker worker 100.100.50.10:6443:36ah6j.nv8myy52hpyy5gso sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
+```
 
 It figures out your OS, if it is supported. Currently supports Ubuntu-16.04, Ubuntu-18.04, Ubuntu-20.04.
 
-You can pass extra kubelet args, if desired, as extra arguments after the `<runtime>`.
+## Install
 
-## Configuration Options
+The basic install figures out your OS and your requested runtime, and installs all of the various dependencies, so you can then just run `kubeadm init` or `kubeadm join`.
 
-If you want to add extra configuration options, you need to create a a kubeadm config file. This shows
-an example of how to do it.
+## Configuration
 
-### Control Plane Nodes
+The install also configures your `kubeadm.yaml` so that your `kubeadm init` or `kubeadm join` just works.
 
-#### Initial Control Plane Node
+The configuration files are in `/etc/kubernetes/kubeadm.yaml`
 
-On the first node, we set an external cloud provider, and a cluster version of 1.18.5, at `/etc/kubernetes/kubeadm.yaml`:
-
-```yaml
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: InitConfiguration
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: "external"
-localAPIEndpoint:
-  advertiseAddress: 147.75.74.233
-  bindPort: 6443
----
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: ClusterConfiguration
-kubernetesVersion: v1.18.5
-apiServer:
-  extraArgs:
-    cloud-provider: "external"
-controllerManager:
-  extraArgs:
-    cloud-provider: "external"
-```
-
-Note that the `advertiseAddress` should be an accessible address to all of the control plane nodes you intend to create.
-
-And init with:
-
-```console
-kubeadm init --config=/etc/kubernetes/kubeadm.yaml
-```
-
-On this node, we will be able to add tokens for future nodes by running:
+To get the token and hashes for join and worker modes, go to the initial control plane mode and run:
 
 ```
 kubeadm token create --print-join-command
@@ -67,67 +54,3 @@ which contains:
 * CA cert hashes
 
 We will use this information to join every other node.
-
-#### Subsequent Control Plane Nodes
-
-If we want to add any other control plane nodes, we create a config file `/etc/kubernetes/kubeadm.yaml` with the following information:
-
-```yaml
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: JoinConfiguration
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: "external"
-discovery:
-  bootstrapToken:
-    apiServerEndpoint: 147.75.78.157:6443
-    token: 36ah6j.nv8myy52hpyy5gso
-    caCertHashes:
-    - sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
-controlPlane:
-  localAPIEndpoint:
-    advertiseAddress: 147.75.74.233
-    bindPort: 6443
-```
-
-Note the following:
-
-* the `advertiseAddress` and the `apiServerEndpoint` **must** match the original address
-* the token **must** be the token provided by `--print-join-command` on the first node
-* the caCertHashes **must** be the hash provided by `--print-join-command` on the first node
-
-Then we can join with:
-
-```console
-kubeadm join --config=/etc/kubernetes/kubeadm.yaml
-```
-
-### Worker Nodes
-
-Create the kubeadm yaml at `/etc/kubernetes/kubeadm.yaml`:
-
-```yaml
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: JoinConfiguration
-nodeRegistration:
-  kubeletExtraArgs:
-    cloud-provider: "external"
-discovery:
-  bootstrapToken:
-    apiServerEndpoint: 147.75.78.157:6443
-    token: 1unewr.2v3o9j8p9v22d0xy
-    caCertHashes:
-    - sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
-```
-
-Note the following:
-
-* the `apiServerEndpoint` **must** match the original address
-* the token **must** be the token provided by `--print-join-command` on the first node
-* the caCertHashes **must** be the hash provided by `--print-join-command` on the first node
-
-And join with:
-
-```console
-kubeadm join --config=/etc/kubernetes/kubeadm.yaml
-```
