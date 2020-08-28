@@ -115,7 +115,7 @@ controlPlane:
     bindPort: ${advertise##*:}
 EOF
       ;;
-    "join")
+    "worker")
       bootstrap="$4"
       certs="$5"
       if [ -z "$bootstrap" ]; then
