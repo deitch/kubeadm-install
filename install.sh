@@ -52,12 +52,13 @@ EOF
 generate_kubeadm_config(){
   local mode="$1"
   local configpath="$2"
+  local version="$3"
   local advertise
   local bootstrap
   local certs
   case $mode in
     "init")
-      advertise="$3"
+      advertise="$4"
       if [ -z "$advertise" ]; then
         echo "mode init had no valid advertise address" >&2
         usage
@@ -74,7 +75,7 @@ localAPIEndpoint:
 ---
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
-kubernetesVersion: v1.18.5
+kubernetesVersion: ${version}
 apiServer:
   extraArgs:
     cloud-provider: "external"
@@ -84,8 +85,8 @@ controllerManager:
 EOF
       ;;
     "join")
-      bootstrap="$3"
-      certs="$4"
+      bootstrap="$4"
+      certs="$5"
       advertise=${bootstrap%:*}
       if [ -z "$bootstrap" ]; then
         echo "mode join had no valid bootstrap address" >&2
@@ -114,8 +115,8 @@ controlPlane:
 EOF
       ;;
     "join")
-      bootstrap="$3"
-      certs="$4"
+      bootstrap="$4"
+      certs="$5"
       if [ -z "$bootstrap" ]; then
         echo "mode worker had no valid bootstrap address" >&2
         usage
@@ -147,6 +148,7 @@ runtimes="docker"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
+version="v1.19.0"
 
 # find my OS
 if [ ! -f $osfile ]; then
@@ -197,7 +199,7 @@ shift
 shift
 
 # generate the correct kubeadm config
-generate_kubeadm_config $mode $kubeadmyaml $@
+generate_kubeadm_config $mode $kubeadmyaml $version $@
 
 case $mode in
   "init")
