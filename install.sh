@@ -150,6 +150,7 @@ modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
 version="v1.19.0"
+curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
 # find my OS
 if [ ! -f $osfile ]; then
@@ -210,8 +211,14 @@ case $mode in
      echo "To get the bootstrap information and CA cert hashes for another node, run:"
      echo "   kubeadm token create --print-join-command"
      echo
-     echo "Here is initial output"
-     kubeadm token create --print-join-command
+     echo "Here are join commands:"
+     joincmd=$(kubeadm token create --print-join-command)
+     advertise=$(echo ${joincmd} | awk '{print $3}')
+     token=$(echo ${joincmd} | awk '{print $5}')
+     certshas=$(echo ${joincmd} | awk '{print $7}')
+     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise}:${token} ${certshas}"
+     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise}:${token} ${certshas}"
+
      ;;
   "join")
      kubeadm join --config=$kubeadmyaml
