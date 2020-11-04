@@ -23,6 +23,9 @@ deploy_ubuntu_18_04_docker(){
 deploy_ubuntu_20_04_docker(){
   deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
 }
+deploy_ubuntu_20_10_docker(){
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+}
 deploy_ubuntu_multiple_docker(){
   local dockername="$1"
   local kubernetesname="$2"
