@@ -24,7 +24,8 @@ deploy_ubuntu_20_04_docker(){
   deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
 }
 deploy_ubuntu_20_10_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+  echo "Ubuntu 20.10 is not supported because docker is not yet supported on it" >&2
+  exit 10
 }
 deploy_ubuntu_multiple_docker(){
   local dockername="$1"
