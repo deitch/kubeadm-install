@@ -31,6 +31,12 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 It figures out your OS, if it is supported. Currently supports Ubuntu-16.04, Ubuntu-18.04, Ubuntu-20.04.
 
+If you have issues with caches - e.g. trying to use immediately after an update to this repository - override any caching with:
+
+```console
+curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh
+```
+
 ## Install
 
 The basic install figures out your OS and your requested runtime, and installs all of the various dependencies, so you can then just run `kubeadm init` or `kubeadm join`.
