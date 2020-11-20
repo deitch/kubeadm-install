@@ -24,8 +24,8 @@ deploy_ubuntu_20_04_docker(){
   deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
 }
 deploy_ubuntu_20_10_docker(){
-  echo "Ubuntu 20.10 is not supported because docker is not yet supported on it" >&2
-  exit 10
+  # replace focal (20.04) for groovy (20.10) since docker install only available for focal
+  deploy_ubuntu_multiple_docker focal xenial
 }
 deploy_ubuntu_multiple_docker(){
   local dockername="$1"
