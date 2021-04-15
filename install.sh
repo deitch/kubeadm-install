@@ -153,7 +153,7 @@ runtimes="docker"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
-version="v1.19.0"
+version="v1.21.0"
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
 # find my OS
