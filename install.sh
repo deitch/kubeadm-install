@@ -15,21 +15,23 @@ usage() {
 
 
 deploy_ubuntu_16_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_18_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_20_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial
+  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_20_10_docker(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
-  deploy_ubuntu_multiple_docker focal xenial
+  deploy_ubuntu_multiple_docker focal xenial "$1"
 }
 deploy_ubuntu_multiple_docker(){
   local dockername="$1"
   local kubernetesname="$2"
+  local version="$3"
+  local aptversion="${version#v}-00"
   # turn off swap
   swapoff -a
 
@@ -50,7 +52,7 @@ deploy_ubuntu_multiple_docker(){
 deb https://apt.kubernetes.io/ kubernetes-${kubernetesname} main
 EOF
   apt-get update -y
-  apt-get install -y kubelet kubeadm kubectl
+  apt-get install -y kubelet=${aptversion} kubeadm=${aptversion} kubectl=${aptversion}
   apt-mark hold kubelet kubeadm kubectl
 }
 
@@ -194,7 +196,7 @@ fi
 
 funcname="deploy_${osfull}_${runtime}"
 if command -V "${funcname}" >/dev/null 2>&1; then
-  ${funcname}
+  ${funcname} ${version}
 else
   echo "unsupported combination of os/runtime ${osfull} ${runtime}" >&2
   exit 1
