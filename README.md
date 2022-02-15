@@ -1,6 +1,6 @@
 # kubeadm-install
 
-Repository with simple scripts to install docker and kubernetes on various node types, and prepare for kubadm.
+Repository with simple scripts to install docker and containerd and kubernetes on various node types, and prepare for kubadm.
 
 # TL;DR
 
@@ -10,7 +10,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 
 where:
 
-* `runtime` - is the container runtime to use, currently supports: `docker`
+* `runtime` - is the container runtime to use, currently supports: `docker`, `containerd`
 * `mode` - is the installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`
 * `advertise address` - IP:port to use as the advertise address, relevant only on initial control plane node
 * `bootstrap` - bootstrap information, relevant only in `join` and `worker` modes, formatted as `<IP>:<port>:<token>`, e.g. `147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso`

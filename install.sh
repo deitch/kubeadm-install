@@ -15,19 +15,34 @@ usage() {
 
 
 deploy_ubuntu_16_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_18_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_20_04_docker(){
-  deploy_ubuntu_multiple_docker "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
 }
 deploy_ubuntu_20_10_docker(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
-  deploy_ubuntu_multiple_docker focal xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
 }
-deploy_ubuntu_multiple_docker(){
+
+deploy_ubuntu_16_04_containerd(){
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+}
+deploy_ubuntu_18_04_containerd(){
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+}
+deploy_ubuntu_20_04_containerd(){
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+}
+deploy_ubuntu_20_10_containerd(){
+  # replace focal (20.04) for groovy (20.10) since containerd install only available for focal
+  deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
+}
+
+deploy_ubuntu_multiple_docker_containerd(){
   local dockername="$1"
   local kubernetesname="$2"
   local version="$3"
@@ -56,16 +71,39 @@ EOF
   apt-mark hold kubelet kubeadm kubectl
 }
 
+configure_runtime(){
+  local runtime="$1"
+  if [ "runtime" = "containerd" ]; then
+    containerd config default > /etc/containerd/config.toml
+    systemctl restart containerd
+  fi
+}
+
 generate_kubeadm_config(){
   local mode="$1"
   local configpath="$2"
   local version="$3"
+  local runtime="$4"
   local advertise
   local bootstrap
   local certs
+  local crisock
+  
+  case $runtime in
+    "docker")
+      crisock="/var/run/dockershim.sock"
+      ;;
+    "containerd")
+      crisock="/run/containerd/containerd.sock"
+      ;;
+    "crio")
+      crisock="/var/run/crio/crio.sock"
+      ;;
+  esac
+
   case $mode in
     "init")
-      advertise="$4"
+      advertise="$5"
       if [ -z "$advertise" ]; then
         echo "mode init had no valid advertise address" >&2
         usage
@@ -74,6 +112,7 @@ cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
 nodeRegistration:
+  criSocket: "$crisock"
   kubeletExtraArgs:
     cloud-provider: "external"
 localAPIEndpoint:
@@ -92,8 +131,8 @@ controllerManager:
 EOF
       ;;
     "join")
-      bootstrap="$4"
-      certs="$5"
+      bootstrap="$5"
+      certs="$6"
       advertise=${bootstrap%:*}
       if [ -z "$bootstrap" ]; then
         echo "mode join had no valid bootstrap address" >&2
@@ -107,6 +146,7 @@ cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 nodeRegistration:
+  criSocket: "$crisock"
   kubeletExtraArgs:
     cloud-provider: "external"
 discovery:
@@ -122,8 +162,8 @@ controlPlane:
 EOF
       ;;
     "worker")
-      bootstrap="$4"
-      certs="$5"
+      bootstrap="$5"
+      certs="$6"
       if [ -z "$bootstrap" ]; then
         echo "mode worker had no valid bootstrap address" >&2
         usage
@@ -136,6 +176,7 @@ cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 nodeRegistration:
+  criSocket: "$crisock"
   kubeletExtraArgs:
     cloud-provider: "external"
 discovery:
@@ -150,7 +191,7 @@ EOF
 }
 
 # supported runtimes
-runtimes="docker"
+runtimes="docker containerd"
 # supported modes
 modes="init join worker"
 osfile="/etc/os-release"
@@ -206,8 +247,11 @@ fi
 shift
 shift
 
+# any runtime-specific config
+configure_runtime ${runtime}
+
 # generate the correct kubeadm config
-generate_kubeadm_config $mode $kubeadmyaml $version $@
+generate_kubeadm_config $mode $kubeadmyaml $version $runtime $@
 
 case $mode in
   "init")
