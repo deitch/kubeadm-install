@@ -1,5 +1,7 @@
 #!/bin/sh
 
+set -e
+
 usage() {
   echo "Usage:" >&2
   echo "$0 <runtime> <mode> [<advertise address>] [bootstrap] [caCert]" >&2
@@ -71,6 +73,44 @@ EOF
   apt-mark hold kubelet kubeadm kubectl
 }
 
+deploy_amazon_linux_2_docker(){
+  local version="$1"
+  # turn off swap
+  swapoff -a
+
+  # install docker
+  yum update -y
+  yum install -y  ca-certificates curl tc
+  yum install -y docker containerd
+
+  # override the cgroup settings to be compatible with kubernetes
+  # this really is NOT good, but no other choice for now
+  mkdir -p /etc/systemd/system/docker.service.d
+  cat <<EOF > /etc/systemd/system/docker.service.d/cgroupfs.conf
+[Service]
+EnvironmentFile=-/etc/systemd/system/docker.service.d/cgroups.sh
+EOF
+  cat <<EOF > /etc/systemd/system/docker.service.d/cgroups.sh
+OPTIONS="--default-ulimit nofile=32768:65536 --exec-opt native.cgroupdriver=systemd"
+EOF
+  systemctl daemon-reload
+  systemctl --now enable docker
+  systemctl start docker
+
+  # install kubeadm
+  cat <<EOF > /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+EOF
+  yum update -y
+  yum install -y kubelet kubectl kubeadm
+}
+
 configure_runtime(){
   local runtime="$1"
   if [ "runtime" = "containerd" ]; then
@@ -88,7 +128,7 @@ generate_kubeadm_config(){
   local bootstrap
   local certs
   local crisock
-  
+
   case $runtime in
     "docker")
       crisock="/var/run/dockershim.sock"
@@ -108,16 +148,19 @@ generate_kubeadm_config(){
         echo "mode init had no valid advertise address" >&2
         usage
       fi
+      advertiseAddress=${advertise%%:*}
+      bindPort=${advertise##*:}
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
 nodeRegistration:
+  name: "${advertiseAddress}"
   criSocket: "$crisock"
   kubeletExtraArgs:
     cloud-provider: "external"
 localAPIEndpoint:
-  advertiseAddress: ${advertise%%:*}
-  bindPort: ${advertise##*:}
+  advertiseAddress: ${advertiseAddress}
+  bindPort: ${bindPort}
 ---
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
@@ -196,7 +239,7 @@ runtimes="docker containerd"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
-version="v1.21.0"
+version="v1.23.4"
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
 # find my OS
@@ -205,7 +248,7 @@ if [ ! -f $osfile ]; then
   exit 1
 fi
 
-osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z')
+osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z' | tr ' ' '_')
 osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '_')
 
 osfull=${osname}_${osrelease}
@@ -255,6 +298,7 @@ generate_kubeadm_config $mode $kubeadmyaml $version $runtime $@
 
 case $mode in
   "init")
+     kubeadm reset -f
      kubeadm init --config=$kubeadmyaml
      echo "Done. Don't forget to install your CNI networking."
      echo
@@ -271,13 +315,14 @@ case $mode in
 
      ;;
   "join")
+     kubeadm reset -f
      kubeadm join --config=$kubeadmyaml
      echo "Done."
      echo
      ;;
   "worker")
+     kubeadm reset -f
      kubeadm join --config=$kubeadmyaml
      ;;
 esac
-
 
