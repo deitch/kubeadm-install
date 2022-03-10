@@ -16,6 +16,9 @@ where:
 * `bootstrap` - bootstrap information, relevant only in `join` and `worker` modes, formatted as `<IP>:<port>:<token>`, e.g. `147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso`
 * `caCert` - ca certificate hashes, comma-separated, relevant only in `join` and `worker` modes, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
 
+For the advertise address, the IP address must be reachable from all of the hosts, including the master, and must be consistent. We strongly
+recommend that you use an IP that stays, liek on Equinix Metal, or an Elastic IP.
+
 Valid formats:
 
 ```console
@@ -29,7 +32,12 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker worker 100.100.50.10:6443:36ah6j.nv8myy52hpyy5gso sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
 ```
 
-It figures out your OS, if it is supported. Currently supports Ubuntu-16.04, Ubuntu-18.04, Ubuntu-20.04.
+It figures out your OS, if it is supported. Currently supports:
+
+* Ubuntu-16.04
+* Ubuntu-18.04
+* Ubuntu-20.04
+* Amazon Linux 2
 
 If you have issues with caches - e.g. trying to use immediately after an update to this repository - override any caching with:
 
