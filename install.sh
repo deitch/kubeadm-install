@@ -114,7 +114,8 @@ EOF
 configure_runtime(){
   local runtime="$1"
   if [ "runtime" = "containerd" ]; then
-    containerd config default > /etc/containerd/config.toml
+    # remove potential disabled cri line
+    containerd config default | grep -v '^\s*disabled_plugins.*"cri"' > /etc/containerd/config.toml
     systemctl restart containerd
   fi
 }
