@@ -125,6 +125,7 @@ generate_kubeadm_config(){
   local configpath="$2"
   local version="$3"
   local runtime="$4"
+  local osfull="$5"
   local advertise
   local bootstrap
   local certs
@@ -144,18 +145,27 @@ generate_kubeadm_config(){
 
   case $mode in
     "init")
-      advertise="$5"
+      advertise="$6"
       if [ -z "$advertise" ]; then
         echo "mode init had no valid advertise address" >&2
         usage
       fi
       advertiseAddress=${advertise%%:*}
       bindPort=${advertise##*:}
+
+      # the OS version determines whether or not we set the advertiseAddress as the master nodename
+      # Amazon Linux uses it, others do not
+      nameline=""
+      case "$osfull" in
+        amazon_linux*)
+          nameline="  name: \"${advertiseAddress}\""
+        ;;
+      esac
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
 nodeRegistration:
-  name: "${advertiseAddress}"
+  ${nameline}
   criSocket: "$crisock"
   kubeletExtraArgs:
     cloud-provider: "external"
@@ -175,8 +185,8 @@ controllerManager:
 EOF
       ;;
     "join")
-      bootstrap="$5"
-      certs="$6"
+      bootstrap="$6"
+      certs="$7"
       advertise=${bootstrap%:*}
       if [ -z "$bootstrap" ]; then
         echo "mode join had no valid bootstrap address" >&2
@@ -206,8 +216,8 @@ controlPlane:
 EOF
       ;;
     "worker")
-      bootstrap="$5"
-      certs="$6"
+      bootstrap="$6"
+      certs="$7"
       if [ -z "$bootstrap" ]; then
         echo "mode worker had no valid bootstrap address" >&2
         usage
@@ -295,7 +305,7 @@ shift
 configure_runtime ${runtime}
 
 # generate the correct kubeadm config
-generate_kubeadm_config $mode $kubeadmyaml $version $runtime $@
+generate_kubeadm_config $mode $kubeadmyaml $version $runtime $osfull $@
 
 case $mode in
   "init")
