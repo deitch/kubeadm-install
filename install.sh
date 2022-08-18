@@ -176,6 +176,7 @@ localAPIEndpoint:
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
 kubernetesVersion: ${version}
+controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
 apiServer:
   extraArgs:
     cloud-provider: "external"
