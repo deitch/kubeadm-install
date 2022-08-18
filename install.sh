@@ -161,6 +161,7 @@ generate_kubeadm_config(){
           nameline="  name: \"${advertiseAddress}\""
         ;;
       esac
+      certsKey=$(kubeadm certs certificate-key)
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
@@ -172,6 +173,7 @@ nodeRegistration:
 localAPIEndpoint:
   advertiseAddress: ${advertiseAddress}
   bindPort: ${bindPort}
+certificateKey: ${certsKey}
 ---
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: ClusterConfiguration
@@ -188,6 +190,7 @@ EOF
     "join")
       bootstrap="$6"
       certs="$7"
+      certsKey="$8"
       advertise=${bootstrap%:*}
       if [ -z "$bootstrap" ]; then
         echo "mode join had no valid bootstrap address" >&2
@@ -195,6 +198,10 @@ EOF
       fi
       if [ -z "$certs" ]; then
         echo "mode join had no valid certs address" >&2
+        usage
+      fi
+      if [ -z "$certsKey" ]; then
+        echo "mode join had no valid certs encryption key" >&2
         usage
       fi
 cat > $configpath <<EOF
@@ -214,6 +221,7 @@ controlPlane:
   localAPIEndpoint:
     advertiseAddress: ${advertise%%:*}
     bindPort: ${advertise##*:}
+  certificateKey: ${certsKey}
 EOF
       ;;
     "worker")
@@ -311,8 +319,7 @@ generate_kubeadm_config $mode $kubeadmyaml $version $runtime $osfull $@
 case $mode in
   "init")
      kubeadm reset -f
-     certsKey=$(kubeadm certs certificate-key)
-     kubeadm init --config=$kubeadmyaml --upload-certs --certificate-key=${certsKey}
+     kubeadm init --config=$kubeadmyaml --upload-certs
      echo "Done. Don't forget to install your CNI networking."
      echo
      echo "To get the bootstrap information and CA cert hashes for another node, run:"
@@ -330,7 +337,7 @@ case $mode in
   "join")
      certsKey="$5"
      kubeadm reset -f
-     kubeadm join --config=$kubeadmyaml --control-plane --certificate-key=${certsKey}
+     kubeadm join --config=$kubeadmyaml
      echo "Done."
      echo
      ;;
