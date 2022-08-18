@@ -311,7 +311,7 @@ generate_kubeadm_config $mode $kubeadmyaml $version $runtime $osfull $@
 case $mode in
   "init")
      kubeadm reset -f
-     kubeadm init --config=$kubeadmyaml
+     kubeadm init --config=$kubeadmyaml --upload-certs
      echo "Done. Don't forget to install your CNI networking."
      echo
      echo "To get the bootstrap information and CA cert hashes for another node, run:"
