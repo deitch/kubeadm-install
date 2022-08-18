@@ -311,7 +311,8 @@ generate_kubeadm_config $mode $kubeadmyaml $version $runtime $osfull $@
 case $mode in
   "init")
      kubeadm reset -f
-     kubeadm init --config=$kubeadmyaml --upload-certs
+     certsKey=$(kubeadm certs certificate-key)
+     kubeadm init --config=$kubeadmyaml --upload-certs --certificate-key=${certsKey}
      echo "Done. Don't forget to install your CNI networking."
      echo
      echo "To get the bootstrap information and CA cert hashes for another node, run:"
@@ -322,13 +323,14 @@ case $mode in
      advertise=$(echo ${joincmd} | awk '{print $3}')
      token=$(echo ${joincmd} | awk '{print $5}')
      certshas=$(echo ${joincmd} | awk '{print $7}')
-     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise}:${token} ${certshas}"
+     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise}:${token} ${certshas} ${certsKey}"
      echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise}:${token} ${certshas}"
 
      ;;
   "join")
+     certsKey="$5"
      kubeadm reset -f
-     kubeadm join --config=$kubeadmyaml
+     kubeadm join --config=$kubeadmyaml --control-plane --certificate-key=${certsKey}
      echo "Done."
      echo
      ;;
