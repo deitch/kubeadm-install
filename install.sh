@@ -4,14 +4,15 @@ set -e
 
 usage() {
   echo "Usage:" >&2
-  echo "$0 <runtime> <mode> [<advertise address>] [bootstrap] [caCert]" >&2
+  echo "$0 <runtime> <mode> [<advertise address>] [bootstrap] [caCert] [certKeys]" >&2
   echo "where <runtime> is one of:">&2
   echo "$runtimes" >&2
   echo "where <mode> is one of:" >&2
   echo "$modes" >&2
   echo "where <advertise address> is the advertising address for init mode, e.g. 147.75.78.157:6443">&2
-  echo "where <bootstrap> is the bootstrap information for join and worker modes, IP and port and token, e.g. 147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso" >&2
-  echo "where <caCert> is the CA cert hashes for join and worker modes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
+  echo "where <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
+  echo "where <caCert> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
+  echo "where <certKeys> is the CA cert keys, used only for \`init\` and \`join\` modes, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
   exit 10
 }
 
@@ -126,9 +127,14 @@ generate_kubeadm_config(){
   local version="$3"
   local runtime="$4"
   local osfull="$5"
-  local advertise
-  local bootstrap
-  local certs
+  local advertise="$6"
+  local bootstrap="$7"
+  local certs="$8"
+  local certsKey="$9"
+  if [ -z "$advertise" ]; then
+    echo "no valid advertise address" >&2
+    usage
+  fi
   local crisock
 
   case $runtime in
@@ -145,11 +151,6 @@ generate_kubeadm_config(){
 
   case $mode in
     "init")
-      advertise="$6"
-      if [ -z "$advertise" ]; then
-        echo "mode init had no valid advertise address" >&2
-        usage
-      fi
       advertiseAddress=${advertise%%:*}
       bindPort=${advertise##*:}
 
@@ -161,7 +162,36 @@ generate_kubeadm_config(){
           nameline="  name: \"${advertiseAddress}\""
         ;;
       esac
-      certsKey=$(kubeadm certs certificate-key)
+      mkdir -p /etc/kubernetes/pki
+      if [ -n "$certs" ]; then
+        echo -n "$certs" | base64 -d > /etc/kubernetes/pki/ca.key
+        # this needs CN and SAN
+        #   - SubjectAlternateName: DNS:kubernetes
+        #   - KeyUsage: Digital Signature, Key Encipherment, Certificate Sign
+        #   - CN=kubernetes
+        cat > /etc/kubernetes/pki/san.cnf <<EOF
+[req]
+distinguished_name = req_distinguished_name
+req_extensions     = v3_req
+x509_extensions    = v3_req
+
+[req_distinguished_name]
+commonName       = {{ common_name }}
+emailAddress     = {{ ssl_certs_email }}
+organizationName = {{ ssl_certs_organization }}
+localityName     = {{ ssl_certs_locality }}
+countryName      = {{ ssl_certs_country }}
+
+[v3_req]
+# The extentions to add to a self-signed cert
+subjectKeyIdentifier = hash
+basicConstraints     = critical,CA:true
+subjectAltName       = DNS:kubernetes
+keyUsage             = critical,digitalSignature,keyEncipherment,keyCertSign
+EOF
+        openssl req -new -x509 -nodes -days 365000 -key /etc/kubernetes/pki/ca.key -out /etc/kubernetes/pki/ca.crt -subj '/CN=kubernees' -config /etc/kubernetes/pki/san.cnf
+        rm -f /etc/kubernetes/pki/san.cnf
+      fi
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
@@ -188,12 +218,8 @@ controllerManager:
 EOF
       ;;
     "join")
-      bootstrap="$6"
-      certs="$7"
-      certsKey="$8"
-      advertise=${bootstrap%:*}
       if [ -z "$bootstrap" ]; then
-        echo "mode join had no valid bootstrap address" >&2
+        echo "mode join had no valid bootstrap token" >&2
         usage
       fi
       if [ -z "$certs" ]; then
@@ -213,8 +239,8 @@ nodeRegistration:
     cloud-provider: "external"
 discovery:
   bootstrapToken:
-    apiServerEndpoint: ${bootstrap%:*}
-    token: ${bootstrap##*:}
+    apiServerEndpoint: ${advertise}
+    token: ${bootstrap}
     caCertHashes:
     - ${certs}
 controlPlane:
@@ -225,10 +251,8 @@ controlPlane:
 EOF
       ;;
     "worker")
-      bootstrap="$6"
-      certs="$7"
       if [ -z "$bootstrap" ]; then
-        echo "mode worker had no valid bootstrap address" >&2
+        echo "mode worker had no valid bootstrap token" >&2
         usage
       fi
       if [ -z "$certs" ]; then
@@ -244,8 +268,8 @@ nodeRegistration:
     cloud-provider: "external"
 discovery:
   bootstrapToken:
-    apiServerEndpoint: ${bootstrap%:*}
-    token: ${bootstrap##*:}
+    apiServerEndpoint: ${advertise}
+    token: ${bootstrap}
     caCertHashes:
     - ${certs}
 EOF
@@ -310,15 +334,56 @@ fi
 shift
 shift
 
+# extract the advertise address, bootstrap token, caCerts
+advertise="$1"
+bootstrap="$2"
+# certshas might be the private key or the shas, depending on mode
+certshas="$3"
+certsKey="$4"
+
+shift
+shift
+shift
+shift
+
+# must either provide ALL OF: bootstrap certshas certsKey
+# OR provide none
+if [ -z "$bootstrap" -a -n "$certshas" ]; then
+  usage
+fi
+if [ -n "$bootstrap" -a -z "$certshas" ]; then
+  usage
+fi
+if [ -z "$bootstrap" -a -n "$certsKey" ]; then
+  usage
+fi
+if [ -n "$bootstrap" -a -z "$certsKey" ]; then
+  usage
+fi
+if [ -z "$certshas" -a -n "$certsKey" ]; then
+  usage
+fi
+if [ -n "$certshas" -a -z "$certsKey" ]; then
+  usage
+fi
+
+# if no certsKey provided, create a new one
+if [ -z "$certsKey" -a "$mode" = "init" ]; then
+    certsKey=$(kubeadm certs certificate-key)
+fi
+
 # any runtime-specific config
 configure_runtime ${runtime}
 
+# reset BEFORE generating kubeconfig or any files
+kubeadm reset -f
+
 # generate the correct kubeadm config
-generate_kubeadm_config $mode $kubeadmyaml $version $runtime $osfull $@
+generate_kubeadm_config "$mode" "$kubeadmyaml" "$version" "$runtime" "$osfull" "$advertise" "$bootstrap" "$certshas" "$certsKey"
+
 
 case $mode in
   "init")
-     kubeadm reset -f
      kubeadm init --config=$kubeadmyaml --upload-certs
      echo "Done. Don't forget to install your CNI networking."
      echo
@@ -326,23 +391,21 @@ case $mode in
      echo "   kubeadm token create --print-join-command"
      echo
      echo "Here are join commands:"
-     joincmd=$(kubeadm token create --print-join-command)
-     advertise=$(echo ${joincmd} | awk '{print $3}')
-     token=$(echo ${joincmd} | awk '{print $5}')
+     joincmd=$(kubeadm token create --print-join-command "$bootstrap")
+     if [ -z "$bootstrap" ]; then
+         bootstrap=$(echo ${joincmd} | awk '{print $5}')
+     fi
      certshas=$(echo ${joincmd} | awk '{print $7}')
-     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise}:${token} ${certshas} ${certsKey}"
-     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise}:${token} ${certshas}"
+     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise} ${bootstrap} ${certshas} ${certsKey}"
+     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise} ${bootstrap} ${certshas}"
 
      ;;
   "join")
-     certsKey="$5"
-     kubeadm reset -f
      kubeadm join --config=$kubeadmyaml
      echo "Done."
      echo
      ;;
   "worker")
-     kubeadm reset -f
      kubeadm join --config=$kubeadmyaml
      ;;
 esac
