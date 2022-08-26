@@ -386,7 +386,7 @@ case $mode in
   "init")
      # do we need to add the advertiseAddress to our local host?
      advertiseAddress=${advertise%%:*}
-     ping -c 3 -q ${advertiseAddress } && echo OK || ip addr add ${advertiseAddress}/32 dev lo
+     ping -c 3 -q ${advertiseAddress} && echo OK || ip addr add ${advertiseAddress}/32 dev lo
      kubeadm init --config=$kubeadmyaml --upload-certs
      echo "Done. Don't forget to install your CNI networking."
      echo
