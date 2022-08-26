@@ -5,31 +5,71 @@ Repository with simple scripts to install docker and containerd and kubernetes o
 # TL;DR
 
 ```sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> <mode> [<advertise address>] [bootstrap] [caCert]
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> <mode> <advertise address> [args...]
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> <mode> <advertise address> [bootstrap] [caCert] [certKeys]
+```
+
+The args change depending on the mode.
+
+```sh
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> init <advertise address> [<bootstrap> <caPrivateKey> <certKeys>]
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> join <advertise address> <bootstrap> <caCertsHash> <certKeys>
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> worker <advertise address> <bootstrap> <caCertsHash>
 ```
 
 where:
 
-* `runtime` - is the container runtime to use, currently supports: `docker`, `containerd`
-* `mode` - is the installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`
-* `advertise address` - IP:port to use as the advertise address, relevant only on initial control plane node
-* `bootstrap` - bootstrap information, relevant only in `join` and `worker` modes, formatted as `<IP>:<port>:<token>`, e.g. `147.75.78.157:6443:36ah6j.nv8myy52hpyy5gso`
-* `caCert` - ca certificate hashes, comma-separated, relevant only in `join` and `worker` modes, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
+* `runtime` - **all modes** container runtime to use, currently supports: `docker`, `containerd`
+* `mode` - **all modes** installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`
+* `advertise address` - **all modes** IP:port to use as the advertise address. For `init` mode, the address on which to listen; for `join` and `worker` modes, the address on which to reach the initial control plane node. e.g. `147.75.78.157:6443`
+* `bootstrap` - **required for `join` and `worker`, optional for `init`** bootstrap token to use when additional control plane (`join`) or workers (`worker`) join; if not provided for `init`, will automatically generate, e.g. `36ah6j.nv8myy52hpyy5gso`
+* `certKeys` - **required for `join`, optional for `init`, error for `worker`** CA certificate keys, usually generated via `kubeadm certs certificate-key`; if not provided for `init`, will automatically generate, e.g. `b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437`
+* `caCertsHash` - **required for `join` and `worker`, error if provided to `init`** CA certificate hash, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
+* `caPrivateKey` - **optional for `init`, error for `join` or `worker`** base64-encoded 2048-bit RSA private key in PEM format; if not provided, will automatically generate
 
 For the advertise address, the IP address must be reachable from all of the hosts, including the master, and must be consistent. We strongly
-recommend that you use an IP that stays, liek on Equinix Metal, or an Elastic IP.
+recommend that you use an IP that stays, like on Equinix Metal, or an Elastic IP.
+
+For `caPrivateKey`, can be generated via:
+
+```sh
+openssl genrsa 2048
+```
+
+For `caCertsHash`, can be generated from a private key via:
+
+```sh
+echo "${caPrivateKey}" | openssl rsa -outform PEM -pubout 2>/dev/null | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1
+```
 
 Valid formats:
 
 ```console
-# initialize control plane, just requires advertise address
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker init 100.100.50.10:6443
+# setup vars
+ADVERTISE_ADDRESS=100.100.50.10:6443
+BOOTSTRAP_TOKEN=36ah6j.nv8myy52hpyy5gso
+CA_ENCRYPTION_KEYS=b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437
+CA_PRIVATE_KEY_PEM_B64=LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBK2x5MDNsWEUyOThIaGloS0ovZDBmN2N4dmt5WHZHNityQUVYeTQ1cjBreWl3UDE2CmgyQUNmWTVjN041bzA0U0wzYXNUU0xndkJsbVM2YWFFMkhnRGN0SXM5YWIycVAyNlpSWXVVRUdia3lYYVUyOEUKUTJkcEZ1bjQvaldUOXlMVU1JeVNIZHdqbm9KVFVTUE1OT21Bajc2OW52aU1KZzQveDFQY0EzYWRPbCtHaWhOQgpCNlBkNmtjWm9GcDJZWlNsZXhMMDM3R25XOHJvdWI2aERQZ0pxc2NyTWNxcVNVOURCVS9qckNML0RpaC8wRzFQCkd6MUM5ckxtTElnQXVkbFoyNUVzbjlOVlVHZHlxejZMQ3ZNaUVaa1l2S1BkaksxWDEwKytiMzRrdW4zeHRkaVQKeUkxUW5rY0JzVDJKZ3ozdTd6em9BQXRpby9kUFAvTWFlNzJ1R3dJREFRQUJBb0lCQVFDSy95ZEhmUFREWVVxTApHQms3b1MzanJqQ0d4MzFDbDNWeWgxVFBwVzJGSHhrSTduRzFjUDlROTlYdGgvbEkzWUROZTZwRUtFV3JUOVc1CnRNSnljQWJ5RzIvc25scTVMY3pyVEdwQUVueXVNRWpMSTRxSlpZTTV2b0tIbC9Wak1zbjlmajJ0S0VmNk83N0kKQUlqaUkzVkYyUTdya0hBMnZKaDZNTHVvakpUMEQzWEVxQ0RWTVUxSlUvM2ZURjZhWWNkYmxkTVNoUWY2QTBoOQo5L01DNERJUWJwNThWVWhKRkY5ZTQ2SFlnTHh0ekJ6ZFUyODVmSHBxU1VpdHNrdnBzN2doU1U3Tlg4REVzMlVFCjNtdWFLcjd4UVJoSHhPRFVWOGpNUVBDenptVTI3bjl3Z1ErWmhWNmt5NnYrOFJud1R6b25WU2V0RzU1U1ZKcFQKUEVkUGFVQWhBb0dCQVA0dTdiYXNOOFZOeUg1aVBHN21lYnF6OW5HR0t0ellSN3Zzemhxdm1Hckh5OUQ0b0pJRApIVTNVK3piVXFBTnFTUjYzeG1xRVYwdkNUTjFCSHpnVS94VkZYNE91M3MzSWc3aUM3djljeGd5TjJlNVk5by9xCmluNEZwUHRqMW9YMUZBNFhZZnp2d3g0N0p1Z2ljZ1dHdHlhc082Nkx6UGxjd0RNcFY2SkxHWGdyQW9HQkFQd20KeVZUODRWK2w1SHYraStxRUZsYXRZVU5RV2QwUzgyYUt5UVRENjNrVjV4TmRqR3g2RmtvaGh2dkU1UU9TcFJ4UgpUMFY3SGFKVktxNDJtOXdnVTk2MjMxeGJxZzNEMGVaM3JlTGc5ekJEMXZiVEQ0YmF2OXJ2L0lhb2tXYVovWU5ZCjQ1b3JzMkRib2l4aHB2VkMwRW9zMFlyVVBUU0FwSDNoaGtRL0V6blJBb0dCQUplRkxBazMwaXNZZWdyMHptZWgKbGpENHRGRHFGTVQvWEl1bTF4bkxVUVZlUXA0NGg2ZGltZVphcnNINXRJb01vcmZmL3pSaDNaUDRxRTlBVWJiaAp0VWxkeUZrOE5lN2Z0NzJXdDVlY0d5ZENyQVhNSEhhZjdweS9DcUVjMjdXUTZicVlyNzNTd3pKVE9wY29hV1huCjcyZnJSY3gvNDlsR05BQ0xoWVRtVmJGdkFvR0FDcUJ2MTc4WW1IbGJXY1p1aXlHcDkxa3pRaXordkl4eDZaNXIKdm1HcmFOejljaGw5TTQwcHAxSW1hREh5SE9adlF2UkNUUUZWVEdRZWVsMGUwSFlrVXJ5T1NVd3JySXpXS2NwZApiN1JmZG85RlhmMmpKK0hNT0NQcEZwdkFGUHprYkVhd3dPeWFrTGh3NjBIcVVXZlJjMjdVSGUrMzdLQ0hUaTdWCkE4ZE12aUVDZ1lCVUVuV1hVeVdPNE9WT01NdmMzY1VDanNNdmlBY2VDNmJFZUxJWmI3NWQyVk5lWkw1Skt2Nk0KVGs5RmluRTdBOVJ5Zk9GT20wZlZsZkozekZxRzBEdVZsUHp4aVQwTU1KQjc3N3VWTUZIb0dTVlQrV0IvUlJFQQpDVGFTTkZMd254SWovcmpwMnlpYm5kRzRjMytPU29KRVdISGR6cmVWVENtK2FIMnZDUG1wMVE9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQ==
+CA_CERT_HASH=sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
+
+# OR
+# create a new key and determine its cert hash
+caPrivateKey=$(openssl genrsa 2048 2>/dev/null)
+CA_PRIVATE_KEY_PEM_B64=$(echo -n $"${caPrivateKey}" | base64 -w 0)
+caPubKey=$(echo -n "${caPrivateKey}" | openssl rsa -outform PEM -pubout 2>/dev/null)
+CA_CERT_HASH=$(echo -n "${caPubKey}" | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | cut -d' ' -f1)
+
+# initialize control plane, just requires advertise address, generate CA key/cert, bootstrap token, encryption keys
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd init ${ADVERTISE_ADDRESS}
+
+# initialize control plane, providing required advertise address, optional CA key/cert, bootstrap token, encryption keys
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd init ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_PRIVATE_KEY_PEM_B64} ${CA_ENCRYPTION_KEYS}
 
 # join control plane, requires advertise address, control plane address and token, and ca cert hashes
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker join 100.100.50.10:6443:36ah6j.nv8myy52hpyy5gso sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd join ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_CERT_HASH} ${CA_ENCRYPTION_KEYS}
 
 # join worker, requires control plane address and token, and ca cert hashes
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s docker worker 100.100.50.10:6443:36ah6j.nv8myy52hpyy5gso sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd worker ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_CERT_HASH}
 ```
 
 It figures out your OS, if it is supported. Currently supports:
