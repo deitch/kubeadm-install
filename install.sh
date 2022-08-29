@@ -4,19 +4,12 @@ set -e
 
 usage() {
   echo "Usage:" >&2
-  echo "$0 <runtime> <mode> <advertise address> [opts...]" >&2
+  echo "$0 <mode> -r <runtime> -a <advertise address> [opts...]" >&2
   echo "where <runtime> is one of:">&2
   echo "$runtimes" >&2
   echo "where <mode> is one of:" >&2
   echo "$modes" >&2
   echo "where <advertise address> is the advertising address for init mode, e.g. 147.75.78.157:6443">&2
-  echo "where <opts> depends on the mode" >&2
-  echo "'init':" >&2
-  echo "   $0 <runtime> init <advertise address> [<bootstrap> <ca certs encryption key> <ca private key> >ca cert>]" >&2
-  echo "'join':" >&2
-  echo "   $0 <runtime> join <advertise address> <bootstrap> <ca certs hash> <ca certs encryption key>" >&2
-  echo "'worker':" >&2
-  echo "   $0 <runtime> worker <advertise address> <bootstrap> <ca certs hash>" >&2
   echo >&2
   echo "where" >&2
   echo "where <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
@@ -27,6 +20,9 @@ usage() {
   exit 10
 }
 
+dryrun() {
+  echo "DRYRUN: $1" >&2
+}
 
 deploy_ubuntu_16_04_docker(){
   deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
@@ -142,27 +138,51 @@ kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
 version="v1.23.4"
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
-# find my OS
-if [ ! -f $osfile ]; then
-  echo "cannot open $osfile for reading to determine if on supported OS" >&2
-  exit 1
-fi
-
-osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z' | tr ' ' '_')
-osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '_')
-
-osfull=${osname}_${osrelease}
-
-runtime="$1"
-mode="$2"
-advertise="$3"
-
-# save the args for the rest
+mode="$1"
 shift
-shift
-shift
+
+dryrun=""
+while getopts ":h?vdr:a:b:e:k:c:s:o:" opt; do
+  case $opt in
+    h|\?)
+	usage
+	;;
+    v)
+	set -x
+	;;
+    d)
+	dryrun="true"
+	;;
+    r)
+	runtime=$OPTARG
+	;;
+    a)
+	advertise=$OPTARG
+	;;
+    b)
+	bootstrap=$OPTARG
+	;;
+    e)
+	certsKey=$OPTARG
+	;;
+    k)
+	caKey=$OPTARG
+	;;
+    c)
+	caCert=$OPTARG
+	;;
+    s)
+	certsha=$OPTARG
+	;;
+    o)
+	osfull=$OPTARG
+	;;
+  esac
+done
+
 
 if [ -z "$runtime" ]; then
+  echo "runtime required" >&2
   usage
   exit 1
 fi
@@ -174,6 +194,7 @@ if [ -z "$found" ]; then
 fi
 
 if [ "$mode" = "" ]; then
+  echo "mode required" >&2
   usage
   exit 1
 fi
@@ -184,9 +205,28 @@ if [ -z "$found" ]; then
   exit 1
 fi
 
+# find my OS unless explicitly override
+if [ -n "$osfull" ]; then
+    echo "using osfull ${osfull}" >&2
+else
+    if [ ! -f $osfile ]; then
+      echo "cannot open $osfile for reading to determine if on supported OS" >&2
+      exit 1
+    fi
+
+    osname=$(awk -F= '$1 == "NAME" {print $2}' $osfile | tr -d '"' | tr 'A-Z' 'a-z' | tr ' ' '_')
+    osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.' '_')
+
+    osfull=${osname}_${osrelease}
+fi
+
 funcname="deploy_${osfull}_${runtime}"
 if command -V "${funcname}" >/dev/null 2>&1; then
-  ${funcname} ${version}
+  if [ -n "$dryrun" ]; then
+    dryrun "${funcname} ${version}"
+  else 
+    ${funcname} ${version}
+  fi
 else
   echo "unsupported combination of os/runtime ${osfull} ${runtime}" >&2
   exit 1
@@ -206,13 +246,26 @@ case $runtime in
 esac
 
 # any runtime-specific config
-configure_runtime ${runtime}
+if [ -n "$dryrun" ]; then
+   dryrun "configure_runtime ${runtime}"
+else
+  configure_runtime ${runtime}
+fi
 
 # reset BEFORE generating kubeconfig or any files
-kubeadm reset -f
+if [ -n "$dryrun" ]; then
+   dryrun "kubeadm reset -f"
+else
+   kubeadm reset -f
+fi
 
 advertiseAddress=${advertise%%:*}
 bindPort=${advertise##*:}
+
+if [ -n "$dryrun" ]; then
+  dryrun "$mode $advertise $bootstrap $certsha $certsKey"
+  exit 0
+fi
 
 case $mode in
   "init")
@@ -225,18 +278,13 @@ case $mode in
         ;;
       esac
       mkdir -p /etc/kubernetes/pki
-      # extract the bootstrap token, caCerts
-      bootstrap="$1"
-      certsKey="$2"
-      caKey="$3"
-      caCert="$4"
 
-      # must either provide ALL OF: bootstrap certshas certsKey
+      # must either provide ALL OF: bootstrap certsha certsKey
       # OR provide none
-      if [ -z "$bootstrap" -a -n "$certshas" ]; then
+      if [ -z "$bootstrap" -a -n "$certsha" ]; then
         usage
       fi
-      if [ -n "$bootstrap" -a -z "$certshas" ]; then
+      if [ -n "$bootstrap" -a -z "$certsha" ]; then
         usage
       fi
       if [ -z "$bootstrap" -a -n "$certsKey" ]; then
@@ -245,10 +293,10 @@ case $mode in
       if [ -n "$bootstrap" -a -z "$certsKey" ]; then
         usage
       fi
-      if [ -z "$certshas" -a -n "$certsKey" ]; then
+      if [ -z "$certsha" -a -n "$certsKey" ]; then
         usage
       fi
-      if [ -n "$certshas" -a -z "$certsKey" ]; then
+      if [ -n "$certsha" -a -z "$certsKey" ]; then
         usage
       fi
 
@@ -298,22 +346,17 @@ EOF
      if [ -z "$bootstrap" ]; then
          bootstrap=$(echo ${joincmd} | awk '{print $5}')
      fi
-     certshas=$(echo ${joincmd} | awk '{print $7}')
-     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise} ${bootstrap} ${certshas} ${certsKey}"
-     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise} ${bootstrap} ${certshas}"
+     certsha=$(echo ${joincmd} | awk '{print $7}')
+     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise} ${bootstrap} ${certsha} ${certsKey}"
+     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise} ${bootstrap} ${certsha}"
 
      ;;
   "join")
-     # extract the bootstrap token, caCerts sha, ca encryption key
-     bootstrap="$1"
-     certshas="$2"
-     certsKey="$3"
-
       if [ -z "$bootstrap" ]; then
         echo "mode join had no valid bootstrap token" >&2
         usage
       fi
-      if [ -z "$certshas" ]; then
+      if [ -z "$certsha" ]; then
         echo "mode join had no valid CA certs shas" >&2
         usage
       fi
@@ -333,7 +376,7 @@ discovery:
     apiServerEndpoint: ${advertise}
     token: ${bootstrap}
     caCertHashes:
-    - ${certshas}
+    - ${certsha}
 controlPlane:
   localAPIEndpoint:
     advertiseAddress: ${advertiseAddress}
@@ -345,15 +388,11 @@ EOF
      echo
      ;;
   "worker")
-     # extract the bootstrap token, caCerts shas
-     bootstrap="$1"
-     certshas="$2"
-
       if [ -z "$bootstrap" ]; then
         echo "mode worker had no valid bootstrap token" >&2
         usage
       fi
-      if [ -z "$certshas" ]; then
+      if [ -z "$certsha" ]; then
         echo "mode worker had no valid certs address" >&2
         usage
       fi
@@ -369,7 +408,7 @@ discovery:
     apiServerEndpoint: ${advertise}
     token: ${bootstrap}
     caCertHashes:
-    - ${certshas}
+    - ${certsha}
 EOF
      kubeadm join --config=$kubeadmyaml
      ;;
