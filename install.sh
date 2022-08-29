@@ -4,15 +4,26 @@ set -e
 
 usage() {
   echo "Usage:" >&2
-  echo "$0 <runtime> <mode> [<advertise address>] [bootstrap] [caCert] [certKeys]" >&2
+  echo "$0 <runtime> <mode> <advertise address> [opts...]" >&2
   echo "where <runtime> is one of:">&2
   echo "$runtimes" >&2
   echo "where <mode> is one of:" >&2
   echo "$modes" >&2
   echo "where <advertise address> is the advertising address for init mode, e.g. 147.75.78.157:6443">&2
+  echo "where <opts> depends on the mode" >&2
+  echo "'init':" >&2
+  echo "   $0 <runtime> init <advertise address> [<bootstrap> <ca certs encryption key> <ca private key> >ca cert>]" >&2
+  echo "'join':" >&2
+  echo "   $0 <runtime> join <advertise address> <bootstrap> <ca certs hash> <ca certs encryption key>" >&2
+  echo "'worker':" >&2
+  echo "   $0 <runtime> worker <advertise address> <bootstrap> <ca certs hash>" >&2
+  echo >&2
+  echo "where" >&2
   echo "where <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
-  echo "where <caCert> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
-  echo "where <certKeys> is the CA cert keys, used only for \`init\` and \`join\` modes, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
+  echo "where <ca certs hash> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
+  echo "where <ca certs encryption key> is the CA cert keys, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
+  echo "where <ca private key> is the CA private key, PEM format and base64 encoded" >&2
+  echo "where <ca cert> is the CA certificate, PEM format and base64 encoded" >&2
   exit 10
 }
 
@@ -121,161 +132,6 @@ configure_runtime(){
   fi
 }
 
-generate_kubeadm_config(){
-  local mode="$1"
-  local configpath="$2"
-  local version="$3"
-  local runtime="$4"
-  local osfull="$5"
-  local advertise="$6"
-  local bootstrap="$7"
-  local certs="$8"
-  local certsKey="$9"
-  if [ -z "$advertise" ]; then
-    echo "no valid advertise address" >&2
-    usage
-  fi
-  local crisock
-
-  case $runtime in
-    "docker")
-      crisock="/var/run/dockershim.sock"
-      ;;
-    "containerd")
-      crisock="/run/containerd/containerd.sock"
-      ;;
-    "crio")
-      crisock="/var/run/crio/crio.sock"
-      ;;
-  esac
-
-  case $mode in
-    "init")
-      advertiseAddress=${advertise%%:*}
-      bindPort=${advertise##*:}
-
-      # the OS version determines whether or not we set the advertiseAddress as the master nodename
-      # Amazon Linux uses it, others do not
-      nameline=""
-      case "$osfull" in
-        amazon_linux*)
-          nameline="  name: \"${advertiseAddress}\""
-        ;;
-      esac
-      mkdir -p /etc/kubernetes/pki
-      if [ -n "$certs" ]; then
-        echo -n "$certs" | base64 -d > /etc/kubernetes/pki/ca.key
-        # this needs CN and SAN
-        #   - SubjectAlternateName: DNS:kubernetes
-        #   - KeyUsage: Digital Signature, Key Encipherment, Certificate Sign
-        #   - CN=kubernetes
-        cat > /etc/kubernetes/pki/san.cnf <<EOF
-[req]
-distinguished_name = req_distinguished_name
-req_extensions     = v3_req
-x509_extensions    = v3_req
-
-[req_distinguished_name]
-commonName       = {{ common_name }}
-emailAddress     = {{ ssl_certs_email }}
-organizationName = {{ ssl_certs_organization }}
-localityName     = {{ ssl_certs_locality }}
-countryName      = {{ ssl_certs_country }}
-
-[v3_req]
-# The extentions to add to a self-signed cert
-subjectKeyIdentifier = hash
-basicConstraints     = critical,CA:true
-subjectAltName       = DNS:kubernetes
-keyUsage             = critical,digitalSignature,keyEncipherment,keyCertSign
-EOF
-        openssl req -new -x509 -nodes -days 365000 -key /etc/kubernetes/pki/ca.key -out /etc/kubernetes/pki/ca.crt -subj '/CN=kubernees' -config /etc/kubernetes/pki/san.cnf
-        rm -f /etc/kubernetes/pki/san.cnf
-      fi
-cat > $configpath <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: InitConfiguration
-nodeRegistration:
-  ${nameline}
-  criSocket: "$crisock"
-  kubeletExtraArgs:
-    cloud-provider: "external"
-localAPIEndpoint:
-  advertiseAddress: ${advertiseAddress}
-  bindPort: ${bindPort}
-certificateKey: ${certsKey}
----
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: ClusterConfiguration
-kubernetesVersion: ${version}
-controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
-apiServer:
-  extraArgs:
-    cloud-provider: "external"
-controllerManager:
-  extraArgs:
-    cloud-provider: "external"
-EOF
-      ;;
-    "join")
-      if [ -z "$bootstrap" ]; then
-        echo "mode join had no valid bootstrap token" >&2
-        usage
-      fi
-      if [ -z "$certs" ]; then
-        echo "mode join had no valid certs address" >&2
-        usage
-      fi
-      if [ -z "$certsKey" ]; then
-        echo "mode join had no valid certs encryption key" >&2
-        usage
-      fi
-cat > $configpath <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: JoinConfiguration
-nodeRegistration:
-  criSocket: "$crisock"
-  kubeletExtraArgs:
-    cloud-provider: "external"
-discovery:
-  bootstrapToken:
-    apiServerEndpoint: ${advertise}
-    token: ${bootstrap}
-    caCertHashes:
-    - ${certs}
-controlPlane:
-  localAPIEndpoint:
-    advertiseAddress: ${advertise%%:*}
-    bindPort: ${advertise##*:}
-  certificateKey: ${certsKey}
-EOF
-      ;;
-    "worker")
-      if [ -z "$bootstrap" ]; then
-        echo "mode worker had no valid bootstrap token" >&2
-        usage
-      fi
-      if [ -z "$certs" ]; then
-        echo "mode worker had no valid certs address" >&2
-        usage
-      fi
-cat > $configpath <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
-kind: JoinConfiguration
-nodeRegistration:
-  criSocket: "$crisock"
-  kubeletExtraArgs:
-    cloud-provider: "external"
-discovery:
-  bootstrapToken:
-    apiServerEndpoint: ${advertise}
-    token: ${bootstrap}
-    caCertHashes:
-    - ${certs}
-EOF
-      ;;
-  esac
-}
 
 # supported runtimes
 runtimes="docker containerd"
@@ -297,10 +153,16 @@ osrelease=$(awk -F= '$1 == "VERSION_ID" {print $2}' $osfile | tr -d '"' | tr '.'
 
 osfull=${osname}_${osrelease}
 
-runtime=$1
-mode=$2
+runtime="$1"
+mode="$2"
+advertise="$3"
 
-if [ "$runtime" = "" ]; then
+# save the args for the rest
+shift
+shift
+shift
+
+if [ -z "$runtime" ]; then
   usage
   exit 1
 fi
@@ -330,47 +192,18 @@ else
   exit 1
 fi
 
-# save the args for the rest
-shift
-shift
-
-# extract the advertise address, bootstrap token, caCerts
-advertise="$1"
-bootstrap="$2"
-# certshas might be the private key or the shas, depending on mode
-certshas="$3"
-certsKey="$4"
-
-shift
-shift
-shift
-shift
-
-# must either provide ALL OF: bootstrap certshas certsKey
-# OR provide none
-if [ -z "$bootstrap" -a -n "$certshas" ]; then
-  usage
-fi
-if [ -n "$bootstrap" -a -z "$certshas" ]; then
-  usage
-fi
-if [ -z "$bootstrap" -a -n "$certsKey" ]; then
-  usage
-fi
-if [ -n "$bootstrap" -a -z "$certsKey" ]; then
-  usage
-fi
-if [ -z "$certshas" -a -n "$certsKey" ]; then
-  usage
-fi
-if [ -n "$certshas" -a -z "$certsKey" ]; then
-  usage
-fi
-
-# if no certsKey provided, create a new one
-if [ -z "$certsKey" -a "$mode" = "init" ]; then
-    certsKey=$(kubeadm certs certificate-key)
-fi
+crisock=""
+case $runtime in
+  "docker")
+    crisock="/var/run/dockershim.sock"
+    ;;
+  "containerd")
+    crisock="/run/containerd/containerd.sock"
+    ;;
+  "crio")
+    crisock="/var/run/crio/crio.sock"
+    ;;
+esac
 
 # any runtime-specific config
 configure_runtime ${runtime}
@@ -378,14 +211,81 @@ configure_runtime ${runtime}
 # reset BEFORE generating kubeconfig or any files
 kubeadm reset -f
 
-# generate the correct kubeadm config
-generate_kubeadm_config "$mode" "$kubeadmyaml" "$version" "$runtime" "$osfull" "$advertise" "$bootstrap" "$certshas" "$certsKey"
-
+advertiseAddress=${advertise%%:*}
+bindPort=${advertise##*:}
 
 case $mode in
   "init")
+      # the OS version determines whether or not we set the advertiseAddress as the master nodename
+      # Amazon Linux uses it, others do not
+      nameline=""
+      case "$osfull" in
+        amazon_linux*)
+          nameline="  name: \"${advertiseAddress}\""
+        ;;
+      esac
+      mkdir -p /etc/kubernetes/pki
+      # extract the bootstrap token, caCerts
+      bootstrap="$1"
+      certsKey="$2"
+      caKey="$3"
+      caCert="$4"
+
+      # must either provide ALL OF: bootstrap certshas certsKey
+      # OR provide none
+      if [ -z "$bootstrap" -a -n "$certshas" ]; then
+        usage
+      fi
+      if [ -n "$bootstrap" -a -z "$certshas" ]; then
+        usage
+      fi
+      if [ -z "$bootstrap" -a -n "$certsKey" ]; then
+        usage
+      fi
+      if [ -n "$bootstrap" -a -z "$certsKey" ]; then
+        usage
+      fi
+      if [ -z "$certshas" -a -n "$certsKey" ]; then
+        usage
+      fi
+      if [ -n "$certshas" -a -z "$certsKey" ]; then
+        usage
+      fi
+
+      # if no certsKey provided, create a new one
+      if [ -z "$certsKey" ]; then
+          certsKey=$(kubeadm certs certificate-key)
+      fi
+
+      if [ -n "$caKey" -a -n "$caCert" ]; then
+        echo -n "$caKey" | base64 -d > /etc/kubernetes/pki/ca.key
+        echo -n "$caCert" | base64 -d > /etc/kubernetes/pki/ca.crt
+      fi
+cat > $configpath <<EOF
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+nodeRegistration:
+  ${nameline}
+  criSocket: "$crisock"
+  kubeletExtraArgs:
+    cloud-provider: "external"
+localAPIEndpoint:
+  advertiseAddress: ${advertiseAddress}
+  bindPort: ${bindPort}
+certificateKey: ${certsKey}
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
+kubernetesVersion: ${version}
+controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
+apiServer:
+  extraArgs:
+    cloud-provider: "external"
+controllerManager:
+  extraArgs:
+    cloud-provider: "external"
+EOF
      # do we need to add the advertiseAddress to our local host?
-     advertiseAddress=${advertise%%:*}
      ping -c 3 -q ${advertiseAddress} && echo OK || ip addr add ${advertiseAddress}/32 dev lo
      kubeadm init --config=$kubeadmyaml --upload-certs
      echo "Done. Don't forget to install your CNI networking."
@@ -404,11 +304,73 @@ case $mode in
 
      ;;
   "join")
+     # extract the bootstrap token, caCerts sha, ca encryption key
+     bootstrap="$1"
+     certshas="$2"
+     certsKey="$3"
+
+      if [ -z "$bootstrap" ]; then
+        echo "mode join had no valid bootstrap token" >&2
+        usage
+      fi
+      if [ -z "$certshas" ]; then
+        echo "mode join had no valid CA certs shas" >&2
+        usage
+      fi
+      if [ -z "$certsKey" ]; then
+        echo "mode join had no valid certs encryption key" >&2
+        usage
+      fi
+cat > $configpath <<EOF
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: JoinConfiguration
+nodeRegistration:
+  criSocket: "$crisock"
+  kubeletExtraArgs:
+    cloud-provider: "external"
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: ${advertise}
+    token: ${bootstrap}
+    caCertHashes:
+    - ${certshas}
+controlPlane:
+  localAPIEndpoint:
+    advertiseAddress: ${advertiseAddress}
+    bindPort: ${bindPort}
+  certificateKey: ${certsKey}
+EOF
      kubeadm join --config=$kubeadmyaml
      echo "Done."
      echo
      ;;
   "worker")
+     # extract the bootstrap token, caCerts shas
+     bootstrap="$1"
+     certshas="$2"
+
+      if [ -z "$bootstrap" ]; then
+        echo "mode worker had no valid bootstrap token" >&2
+        usage
+      fi
+      if [ -z "$certshas" ]; then
+        echo "mode worker had no valid certs address" >&2
+        usage
+      fi
+cat > $configpath <<EOF
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: JoinConfiguration
+nodeRegistration:
+  criSocket: "$crisock"
+  kubeletExtraArgs:
+    cloud-provider: "external"
+discovery:
+  bootstrapToken:
+    apiServerEndpoint: ${advertise}
+    token: ${bootstrap}
+    caCertHashes:
+    - ${certshas}
+EOF
      kubeadm join --config=$kubeadmyaml
      ;;
 esac
