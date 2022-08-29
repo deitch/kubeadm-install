@@ -11,21 +11,21 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 The args change depending on the mode.
 
 ```sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> init <advertise address> [<bootstrap> <certKeys> <caPrivateKey> <caCert>]
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> join <advertise address> <bootstrap> <caCertsHash> <certKeys>
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s <runtime> worker <advertise address> <bootstrap> <caCertsHash>
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r <runtime> -a <advertise address> [-b <bootstrap> -e <certEncryptionKey> -k <caPrivateKey> -c <caCert>]
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r <runtime> -a <advertise address> -b <bootstrap> -s <caCertsHash> -e <certEncryptionKey>
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r <runtime> -a <advertise address> -b <bootstrap> -s <caCertsHash>
 ```
 
 where:
 
-* `runtime` - **all modes** container runtime to use, currently supports: `docker`, `containerd`
-* `mode` - **all modes** installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`
-* `advertise address` - **all modes** IP:port to use as the advertise address. For `init` mode, the address on which to listen; for `join` and `worker` modes, the address on which to reach the initial control plane node. e.g. `147.75.78.157:6443`
-* `bootstrap` - **required for `join` and `worker`, optional for `init`** bootstrap token to use when additional control plane (`join`) or workers (`worker`) join; if not provided for `init`, will automatically generate, e.g. `36ah6j.nv8myy52hpyy5gso`
-* `certKeys` - **required for `join`, optional for `init`, error for `worker`** CA certificate keys, usually generated via `kubeadm certs certificate-key`; if not provided for `init`, will automatically generate, e.g. `b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437`
-* `caCertsHash` - **required for `join` and `worker`, error if provided to `init`** CA certificate hash, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
-* `caPrivateKey` - **optional for `init`, error for `join` or `worker`** base64-encoded 2048-bit RSA private key in PEM format; if not provided, will automatically generate
-* `caCert` - **optional for `init`, error for `join` or `worker`** base64-encoded certificate for CA; must be provided if caPrivateKey provided
+* `mode` - **all modes** installation mode to use, currently supports: `init` (initial control plane nodes), `join` (additional control plane nodes), `worker`. This is the only positional parameter, and **must** be provided first.
+* `-r runtime` - **all modes** container runtime to use, currently supports: `docker`, `containerd`
+* `-a <advertise address>` - **all modes** IP:port to use as the advertise address. For `init` mode, the address on which to listen; for `join` and `worker` modes, the address on which to reach the initial control plane node. e.g. `147.75.78.157:6443`
+* `-b bootstrap` - **required for `join` and `worker`, optional for `init`** bootstrap token to use when additional control plane (`join`) or workers (`worker`) join; if not provided for `init`, will automatically generate, e.g. `36ah6j.nv8myy52hpyy5gso`
+* `-e certEncryptionKey` - **required for `join`, optional for `init`, error for `worker`** CA certificate keys, usually generated via `kubeadm certs certificate-key`; if not provided for `init`, will automatically generate, e.g. `b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437`
+* `-s caCertsHash` - **required for `join` and `worker`, error if provided to `init`** CA certificate hash, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
+* `-k caPrivateKey` - **optional for `init`, error for `join` or `worker`** base64-encoded 2048-bit RSA private key in PEM format; if not provided, will automatically generate
+* `-c caCert` - **optional for `init`, error for `join` or `worker`** base64-encoded certificate for CA; must be provided if caPrivateKey provided
 
 For the advertise address, the IP address must be reachable from all of the hosts, including the master, and must be consistent. We strongly
 recommend that you use an IP that stays, like on Equinix Metal, or an Elastic IP.
@@ -64,16 +64,16 @@ openssl req -new -x509 -nodes -days 365000 -key /tmp/ca.key -out /tmp/ca.crt -su
 CA_CERT_B64=$(cat /tmp/ca.crt | base64 -w 0)
 
 # initialize control plane, just requires advertise address, generate CA key/cert, bootstrap token, encryption keys
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd init ${ADVERTISE_ADDRESS}
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a ${ADVERTISE_ADDRESS}
 
 # initialize control plane, providing required advertise address, optional CA key/cert, bootstrap token, encryption keys
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd init ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_ENCRYPTION_KEYS} ${CA_PRIVATE_KEY_PEM_B64} ${CA_CERT_B64}
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r containerd -a ${ADVERTISE_ADDRESS} -b ${BOOTSTRAP_TOKEN} -e ${CA_ENCRYPTION_KEYS} -k ${CA_PRIVATE_KEY_PEM_B64} -c ${CA_CERT_B64}
 
 # join control plane, requires advertise address, control plane address and token, and ca cert hashes
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd join ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_CERT_HASH} ${CA_ENCRYPTION_KEYS}
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r containerd -a ${ADVERTISE_ADDRESS} -b ${BOOTSTRAP_TOKEN} -s ${CA_CERT_HASH} -e ${CA_ENCRYPTION_KEYS}
 
 # join worker, requires control plane address and token, and ca cert hashes
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s containerd worker ${ADVERTISE_ADDRESS} ${BOOTSTRAP_TOKEN} ${CA_CERT_HASH}
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r containerd -a ${ADVERTISE_ADDRESS} -b ${BOOTSTRAP_TOKEN} -s ${CA_CERT_HASH}
 ```
 
 It figures out your OS, if it is supported. Currently supports:
