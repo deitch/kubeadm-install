@@ -15,8 +15,8 @@ usage() {
   echo "where <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
   echo "where <ca certs hash> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
   echo "where <ca certs encryption key> is the CA cert keys, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
-  echo "where <ca private key> is the CA private key, PEM format and base64 encoded" >&2
-  echo "where <ca cert> is the CA certificate, PEM format and base64 encoded" >&2
+  echo "where <ca private key> is the CA private key, PEM format and base64 encoded; may also be provided in a PEM file" >&2
+  echo "where <ca cert> is the CA certificate, PEM format and base64 encoded; may also be provided in a PEM file" >&2
   exit 10
 }
 
@@ -171,6 +171,12 @@ while getopts ":h?vdr:a:b:e:k:c:s:o:" opt; do
     c)
 	caCert=$OPTARG
 	;;
+    f)
+	caKeyFile=$OPTARG
+	;;
+    g)
+	caCertFile=$OPTARG
+	;;
     s)
 	certsha=$OPTARG
 	;;
@@ -279,36 +285,28 @@ case $mode in
       esac
       mkdir -p /etc/kubernetes/pki
 
-      # must either provide ALL OF: bootstrap certsha certsKey
-      # OR provide none
-      if [ -z "$bootstrap" -a -n "$certsha" ]; then
-        usage
-      fi
-      if [ -n "$bootstrap" -a -z "$certsha" ]; then
-        usage
-      fi
-      if [ -z "$bootstrap" -a -n "$certsKey" ]; then
-        usage
-      fi
-      if [ -n "$bootstrap" -a -z "$certsKey" ]; then
-        usage
-      fi
-      if [ -z "$certsha" -a -n "$certsKey" ]; then
-        usage
-      fi
-      if [ -n "$certsha" -a -z "$certsKey" ]; then
-        usage
-      fi
-
       # if no certsKey provided, create a new one
       if [ -z "$certsKey" ]; then
           certsKey=$(kubeadm certs certificate-key)
       fi
 
-      if [ -n "$caKey" -a -n "$caCert" ]; then
+      # kubeadm automatically will create the CA key and cert if ca.key and ca.crt are empty;
+      # If only one is provided, kubeadm will error out. So we need do nothing except populate
+      # whatever we were passed.
+
+      if [ -n "$caKey" ]; then
         echo -n "$caKey" | base64 -d > /etc/kubernetes/pki/ca.key
+      fi
+      if [ -n "$caCert" ]; then
         echo -n "$caCert" | base64 -d > /etc/kubernetes/pki/ca.crt
       fi
+      if [ -n "$caKeyFile" -a "$caKeyFile" != /etc/kubernetes/pki/ca.key ]; then
+        cp $caKeyFile /etc/kubernetes/pki/ca.key
+      fi
+      if [ -n "$caCertFile" -a "$caCertFile" != /etc/kubernetes/pki/ca.crt ]; then
+        cp $caCertFile /etc/kubernetes/pki/ca.crt
+      fi
+
 cat > $configpath <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
