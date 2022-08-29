@@ -307,7 +307,7 @@ case $mode in
         cp $caCertFile /etc/kubernetes/pki/ca.crt
       fi
 
-cat > $configpath <<EOF
+cat > $kubeadmyaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: InitConfiguration
 nodeRegistration:
@@ -362,7 +362,7 @@ EOF
         echo "mode join had no valid certs encryption key" >&2
         usage
       fi
-cat > $configpath <<EOF
+cat > $kubeadmyaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 nodeRegistration:
@@ -394,7 +394,7 @@ EOF
         echo "mode worker had no valid certs address" >&2
         usage
       fi
-cat > $configpath <<EOF
+cat > $kubeadmyaml <<EOF
 apiVersion: kubeadm.k8s.io/v1beta2
 kind: JoinConfiguration
 nodeRegistration:
