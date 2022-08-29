@@ -11,7 +11,7 @@ curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh 
 The args change depending on the mode.
 
 ```sh
-curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r <runtime> -a <advertise address> [-b <bootstrap> -e <certEncryptionKey> -k <caPrivateKey> -c <caCert>]
+curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s init -r <runtime> -a <advertise address> [-b <bootstrap>] [-e <certEncryptionKey>] [-k <caPrivateKey> | -f <caKeyFilePath>] [-c <caCert> | -g <caCertFilePath>]
 curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s join -r <runtime> -a <advertise address> -b <bootstrap> -s <caCertsHash> -e <certEncryptionKey>
 curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh | sh -s worker -r <runtime> -a <advertise address> -b <bootstrap> -s <caCertsHash>
 ```
@@ -24,11 +24,16 @@ where:
 * `-b bootstrap` - **required for `join` and `worker`, optional for `init`** bootstrap token to use when additional control plane (`join`) or workers (`worker`) join; if not provided for `init`, will automatically generate, e.g. `36ah6j.nv8myy52hpyy5gso`
 * `-e certEncryptionKey` - **required for `join`, optional for `init`, error for `worker`** CA certificate keys, usually generated via `kubeadm certs certificate-key`; if not provided for `init`, will automatically generate, e.g. `b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437`
 * `-s caCertsHash` - **required for `join` and `worker`, error if provided to `init`** CA certificate hash, e.g. `sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732`
-* `-k caPrivateKey` - **optional for `init`, error for `join` or `worker`** base64-encoded 2048-bit RSA private key in PEM format; if not provided, will automatically generate
-* `-c caCert` - **optional for `init`, error for `join` or `worker`** base64-encoded certificate for CA; must be provided if caPrivateKey provided
+* `-k caPrivateKey` - **optional for `init`, error for `join` or `worker`** base64-encoded 2048-bit RSA private key in PEM format
+* `-c caCert` - **optional for `init`, error for `join` or `worker`** base64-encoded certificate for CA
+* `-f caKeyFilePath` - **optional for `init`, error for `join` or `worker`** path to 2048-bit RSA private key in PEM format
+* `-g caCert` - **optional for `init`, error for `join` or `worker`** path to base64-encoded certificate for CA
 
 For the advertise address, the IP address must be reachable from all of the hosts, including the master, and must be consistent. We strongly
 recommend that you use an IP that stays, like on Equinix Metal, or an Elastic IP.
+
+If you do not provide a CA private key and certificate to the `init` node, then kubeadm will generate one for you automatically. You can provide the key
+and/or the certificate via base64-encoded string or path to a file. If you provide key and not cert, or cert and not key, kubeadm will return an error.
 
 For `caPrivateKey`, can be generated via:
 
