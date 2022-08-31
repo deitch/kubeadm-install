@@ -345,8 +345,8 @@ EOF
          bootstrap=$(echo ${joincmd} | awk '{print $5}')
      fi
      certsha=$(echo ${joincmd} | awk '{print $7}')
-     echo "control plane: ${curlinstall} "'|'" sh -s ${runtime} join ${advertise} ${bootstrap} ${certsha} ${certsKey}"
-     echo "worker       : ${curlinstall} "'|'" sh -s ${runtime} worker ${advertise} ${bootstrap} ${certsha}"
+     echo "control plane: ${curlinstall} "'|'" sh -s join -r ${runtime} -a ${advertise} -b ${bootstrap} -s ${certsha} -e ${certsKey}"
+     echo "worker       : ${curlinstall} "'|'" sh -s worker -r ${runtime} -a ${advertise} -b ${bootstrap} -s ${certsha}"
 
      ;;
   "join")
