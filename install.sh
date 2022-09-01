@@ -5,18 +5,22 @@ set -e
 usage() {
   echo "Usage:" >&2
   echo "$0 <mode> -r <runtime> -a <advertise address> [opts...]" >&2
-  echo "where <runtime> is one of:">&2
-  echo "$runtimes" >&2
-  echo "where <mode> is one of:" >&2
+  echo -n "where <mode> is one of: " >&2
   echo "$modes" >&2
+  echo -n "where <runtime> is one of: ">&2
+  echo "$runtimes" >&2
   echo "where <advertise address> is the advertising address for init mode, e.g. 147.75.78.157:6443">&2
   echo >&2
   echo "where" >&2
-  echo "where <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
-  echo "where <ca certs hash> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
-  echo "where <ca certs encryption key> is the CA cert keys, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
-  echo "where <ca private key> is the CA private key, PEM format and base64 encoded; may also be provided in a PEM file" >&2
-  echo "where <ca cert> is the CA certificate, PEM format and base64 encoded; may also be provided in a PEM file" >&2
+  echo "  -b <bootstrap> is the bootstrap token, e.g. 36ah6j.nv8myy52hpyy5gso" >&2
+  echo "  -s <ca certs hash> is the CA cert hashes, e.g. sha256:c9f1621ec77ed9053cd4a76f85d609791b20fab337537df309d3d8f6ac340732" >&2
+  echo "  -e <ca certs encryption key> is the CA cert keys, e.g. b98b6165eafb91dd690bb693a8e2f57f6043865fcf75da68abc251a7f3dba437" >&2
+  echo "  -k <ca private key> is the CA private key, PEM format and base64 encoded; may also be provided in a PEM file" >&2
+  echo "  -c <ca cert> is the CA certificate, PEM format and base64 encoded; may also be provided in a PEM file" >&2
+  echo "  -i <ip> is the local address of the host to use for the API endpoint; defaults to whatever kubeadm discovers" >&2
+  echo "  -o <os full> is the OS name and version to install for, e.g. ubuntu_16_04; defaults to discovery from /etc/os-release" >&2
+  echo "  -d to set debug mode" >&2
+  echo "  -h to show usage and exit" >&2
   exit 10
 }
 
@@ -142,7 +146,7 @@ mode="$1"
 shift
 
 dryrun=""
-while getopts ":h?vdr:a:b:e:k:c:s:o:" opt; do
+while getopts ":h?vdr:a:b:e:k:c:s:o:i:" opt; do
   case $opt in
     h|\?)
 	usage
@@ -182,6 +186,9 @@ while getopts ":h?vdr:a:b:e:k:c:s:o:" opt; do
 	;;
     o)
 	osfull=$OPTARG
+	;;
+    i)
+	localip=$OPTARG
 	;;
   esac
 done
@@ -316,7 +323,7 @@ nodeRegistration:
   kubeletExtraArgs:
     cloud-provider: "external"
 localAPIEndpoint:
-  advertiseAddress: ${advertiseAddress}
+  advertiseAddress: ${localip}
   bindPort: ${bindPort}
 certificateKey: ${certsKey}
 ---
@@ -377,7 +384,7 @@ discovery:
     - ${certsha}
 controlPlane:
   localAPIEndpoint:
-    advertiseAddress: ${advertiseAddress}
+    advertiseAddress: ${localip}
     bindPort: ${bindPort}
   certificateKey: ${certsKey}
 EOF
