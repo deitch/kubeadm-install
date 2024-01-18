@@ -19,7 +19,9 @@ usage() {
   echo "  -c <ca cert> is the CA certificate, PEM format and base64 encoded; may also be provided in a PEM file" >&2
   echo "  -i <ip> is the local address of the host to use for the API endpoint; defaults to whatever kubeadm discovers" >&2
   echo "  -o <os full> is the OS name and version to install for, e.g. ubuntu_16_04; defaults to discovery from /etc/os-release" >&2
-  echo "  -d to set debug mode" >&2
+  echo "  -n kubernetes version, defaults to ${default_kubernetes_version} (because -k and -v were taken)" >&2
+  echo "  -v verbose" >&2
+  echo "  -d to dry-run and exit" >&2
   echo "  -h to show usage and exit" >&2
   exit 10
 }
@@ -149,7 +151,8 @@ runtimes="docker containerd"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
-version="v1.23.4"
+default_kubernetes_version="v1.23.4"
+version=${default_kubernetes_version}
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
 mode="$1"
@@ -172,6 +175,9 @@ while getopts ":h?vdr:a:b:e:k:c:s:o:i:" opt; do
 	;;
     a)
 	advertise=$OPTARG
+	;;
+    n)
+	version=$OPTARG
 	;;
     b)
 	bootstrap=$OPTARG
