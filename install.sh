@@ -41,6 +41,9 @@ deploy_ubuntu_20_10_docker(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
   deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
 }
+deploy_ubuntu_22_04_docker(){
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+}
 
 deploy_ubuntu_16_04_containerd(){
   deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
@@ -55,6 +58,10 @@ deploy_ubuntu_20_10_containerd(){
   # replace focal (20.04) for groovy (20.10) since containerd install only available for focal
   deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
 }
+deploy_ubuntu_22_04_containerd(){
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+}
+
 
 deploy_ubuntu_multiple_docker_containerd(){
   local dockername="$1"
@@ -71,7 +78,10 @@ deploy_ubuntu_multiple_docker_containerd(){
   apt-key fingerprint 0EBFCD88
   add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $dockername stable"
   apt-get update -y
-  apt-get install -y docker-ce docker-ce-cli containerd.io
+  apt-get install -y docker-ce docker-ce-cli
+
+  # install containerd, which sometimes is containerd.io and sometimes containerd
+  apt-get install -y containerd.io || apt-get install -y containerd || false
 
   # install kubeadm
   apt-get update -y
