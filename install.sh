@@ -159,7 +159,7 @@ mode="$1"
 shift
 
 dryrun=""
-while getopts ":h?vdr:a:b:e:k:c:s:o:i:" opt; do
+while getopts ":h?vdr:a:b:e:k:c:s:o:i:n:" opt; do
   case $opt in
     h|\?)
 	usage
