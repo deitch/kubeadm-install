@@ -292,13 +292,13 @@ fi
 crisock=""
 case $runtime in
   "docker")
-    crisock="/var/run/dockershim.sock"
+    crisock="unix:/var/run/dockershim.sock"
     ;;
   "containerd")
-    crisock="/run/containerd/containerd.sock"
+    crisock="unix:/run/containerd/containerd.sock"
     ;;
   "crio")
-    crisock="/var/run/crio/crio.sock"
+    crisock="unix:/var/run/crio/crio.sock"
     ;;
 esac
 
