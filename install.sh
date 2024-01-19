@@ -30,6 +30,7 @@ dryrun() {
   echo "DRYRUN: $1" >&2
 }
 
+# functions to get the ubuntu docker install package platform
 docker_ubuntu_16_04(){
   echo "$(lsb_release -cs)"
 }
@@ -47,6 +48,7 @@ docker_22_04(){
   echo "$(lsb_release -cs)"
 }
 
+# functions to deploy software to specific OSes
 deploy_ubuntu(){
   local osfull="$1"
   local arch="$2"
@@ -149,6 +151,8 @@ configure_runtime(){
 runtimes="docker containerd"
 # supported OSes
 oses="ubuntu_16_04 ubuntu_18_04 ubuntu_20_04 ubuntu_20_10 ubuntu_22_04 amazon_linux_2"
+# kubeadm API version - in a single var so easy to update
+kubeadmversion="kubeadm.k8s.io/v1beta3"
 
 # supported modes
 modes="init join worker"
@@ -272,8 +276,11 @@ echo "${oses}" | grep -w "${osfull}" >/dev/null 2>&1 || {
 
 funcname="deploy_${osfull}"
 command -V "${funcname}" >/dev/null 2>&1 || {
-  echo "unsupported OS ${osfull}" >&2
-  exit 1
+  funcname="deploy_${osname}"
+  command -V "${funcname}" >/dev/null 2>&1 || {
+    echo "unsupported OS ${osfull}" >&2
+    exit 1
+  }
 }
 
 if [ -n "$dryrun" ]; then
@@ -352,7 +359,7 @@ case $mode in
       fi
 
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: ${kubeadmversion}
 kind: InitConfiguration
 nodeRegistration:
   ${nameline}
@@ -364,7 +371,7 @@ localAPIEndpoint:
   bindPort: ${bindPort}
 certificateKey: ${certsKey}
 ---
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: ${kubeadmversion}
 kind: ClusterConfiguration
 kubernetesVersion: ${version}
 controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
@@ -407,7 +414,7 @@ EOF
         usage
       fi
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: ${kubeadmversion}
 kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
@@ -439,7 +446,7 @@ EOF
         usage
       fi
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta3
+apiVersion: ${kubeadmversion}
 kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
