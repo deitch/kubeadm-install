@@ -30,50 +30,40 @@ dryrun() {
   echo "DRYRUN: $1" >&2
 }
 
-deploy_ubuntu_16_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
+docker_ubuntu_16_04(){
+  echo "$(lsb_release -cs)"
 }
-deploy_ubuntu_18_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
+docker_ubuntu_18_04(){
+  echo "$(lsb_release -cs)"
 }
-deploy_ubuntu_20_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
+docker_ubuntu_20_04(){
+  echo "$(lsb_release -cs)"
 }
-deploy_ubuntu_20_10_docker(){
+docker_ubuntu_20_10(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
-  deploy_ubuntu_multiple_docker_containerd focal xenial "$1" "$2"
+  echo focal
 }
-deploy_ubuntu_22_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
-}
-
-deploy_ubuntu_16_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
-}
-deploy_ubuntu_18_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
-}
-deploy_ubuntu_20_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
-}
-deploy_ubuntu_20_10_containerd(){
-  # replace focal (20.04) for groovy (20.10) since containerd install only available for focal
-  deploy_ubuntu_multiple_docker_containerd focal xenial "$1" "$2"
-}
-deploy_ubuntu_22_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
+docker_22_04(){
+  echo "$(lsb_release -cs)"
 }
 
-
-deploy_ubuntu_multiple_docker_containerd(){
-  local dockername="$1"
-  local kubernetesname="$2"
-  local arch="$3"
-  local version="$4"
+deploy_ubuntu(){
+  local osfull="$1"
+  local arch="$2"
+  local version="$3"
   local aptversion="${version#v}"
   local minorversion=$(echo "${version#v}" | awk -F. '{print $1"."$2}')
   # turn off swap
   swapoff -a
+
+  # get docker install version
+  local dockername="$(docker_${osfull}})"
+  if [ -z "$dockername" ]; then
+    echo "unsupported OS ${osfull}" >&2
+    exit 1
+  fi
+  local kubernetesname="xenial"
+
 
   # install docker
   apt-get update -y
@@ -107,7 +97,7 @@ deploy_ubuntu_multiple_docker_containerd(){
   done
 }
 
-deploy_amazon_linux_2_docker(){
+deploy_amazon_linux_2(){
   local version="$1"
   # turn off swap
   swapoff -a
@@ -157,6 +147,9 @@ configure_runtime(){
 
 # supported runtimes
 runtimes="docker containerd"
+# supported OSes
+oses="ubuntu_16_04 ubuntu_18_04 ubuntu_20_04 ubuntu_20_10 ubuntu_22_04 amazon_linux_2"
+
 # supported modes
 modes="init join worker"
 osfile="/etc/os-release"
@@ -265,16 +258,28 @@ if [ "$arch" = "x86_64" ]; then
   arch="amd64"
 fi
 
-funcname="deploy_${osfull}_${runtime}"
-if command -V "${funcname}" >/dev/null 2>&1; then
-  if [ -n "$dryrun" ]; then
-    dryrun "${funcname} ${arch} ${version}"
-  else 
-    ${funcname} ${arch} ${version}
-  fi
-else
-  echo "unsupported combination of os/runtime ${osfull} ${runtime}" >&2
+# see if the runtime is supported
+echo "${runtimes}" | grep -w "${runtime}" >/dev/null 2>&1 || {
+  echo "unsupported runtime ${runtime}" >&2
   exit 1
+}
+
+# see if the OS is supported
+echo "${oses}" | grep -w "${osfull}" >/dev/null 2>&1 || {
+  echo "unsupported OS ${osfull}" >&2
+  exit 1
+}
+
+funcname="deploy_${osfull}"
+command -V "${funcname}" >/dev/null 2>&1 || {
+  echo "unsupported OS ${osfull}" >&2
+  exit 1
+}
+
+if [ -n "$dryrun" ]; then
+  dryrun "${funcname} ${osfull}" ${arch} ${version}"
+else 
+  ${funcname} ${osfull}" "${arch}" "${version}"
 fi
 
 crisock=""
