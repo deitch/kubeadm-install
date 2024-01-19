@@ -31,45 +31,47 @@ dryrun() {
 }
 
 deploy_ubuntu_16_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_18_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_20_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_20_10_docker(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
-  deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd focal xenial "$1" "$2"
 }
 deploy_ubuntu_22_04_docker(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 
 deploy_ubuntu_16_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_18_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_20_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 deploy_ubuntu_20_10_containerd(){
   # replace focal (20.04) for groovy (20.10) since containerd install only available for focal
-  deploy_ubuntu_multiple_docker_containerd focal xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd focal xenial "$1" "$2"
 }
 deploy_ubuntu_22_04_containerd(){
-  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1"
+  deploy_ubuntu_multiple_docker_containerd "$(lsb_release -cs)" xenial "$1" "$2"
 }
 
 
 deploy_ubuntu_multiple_docker_containerd(){
   local dockername="$1"
   local kubernetesname="$2"
-  local version="$3"
-  local aptversion="${version#v}-00"
+  local arch="$3"
+  local version="$4"
+  local aptversion="${version#v}"
+  local minorversion=$(echo "${version#v}" | awk -F. '{print $1"."$2}')
   # turn off swap
   swapoff -a
 
@@ -78,7 +80,7 @@ deploy_ubuntu_multiple_docker_containerd(){
   apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
   apt-key fingerprint 0EBFCD88
-  add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $dockername stable"
+  add-apt-repository "deb [arch=${arch}] https://download.docker.com/linux/ubuntu $dockername stable"
   apt-get update -y
   apt-get install -y docker-ce docker-ce-cli
 
@@ -88,13 +90,21 @@ deploy_ubuntu_multiple_docker_containerd(){
   # install kubeadm
   apt-get update -y
   apt-get install -y apt-transport-https curl
-  curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
-  cat <<EOF | sudo tee /etc/apt/sources.list.d/kubernetes.list
-deb https://apt.kubernetes.io/ kubernetes-${kubernetesname} main
-EOF
+
+
+  # If the folder `/etc/apt/keyrings` does not exist, it should be created before the curl command, read the note below.
+  sudo mkdir -p -m 755 /etc/apt/keyrings
+  rm -f /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  curl -fsSL https://pkgs.k8s.io/core:/stable:/v${minorversion}/deb/Release.key | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+  # This overwrites any existing configuration in /etc/apt/sources.list.d/kubernetes.list
+  echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | sudo tee /etc/apt/sources.list.d/kubernetes.list
+
   apt-get update -y
-  apt-get install -y kubelet=${aptversion} kubeadm=${aptversion} kubectl=${aptversion}
-  apt-mark hold kubelet kubeadm kubectl
+  for pkg in kubelet kubeadm kubectl; do
+    apt-get install -y "?and(?exact-name(${pkg}),?version(${aptversion}-*),?architecture(${arch}))"
+    apt-mark hold ${pkg}
+  done
 }
 
 deploy_amazon_linux_2_docker(){
@@ -249,12 +259,18 @@ else
     osfull=${osname}_${osrelease}
 fi
 
+# get the architecture in debian format
+arch=$(uname -m)
+if [ "$arch" = "x86_64" ]; then
+  arch="amd64"
+fi
+
 funcname="deploy_${osfull}_${runtime}"
 if command -V "${funcname}" >/dev/null 2>&1; then
   if [ -n "$dryrun" ]; then
-    dryrun "${funcname} ${version}"
+    dryrun "${funcname} ${arch} ${version}"
   else 
-    ${funcname} ${version}
+    ${funcname} ${arch} ${version}
   fi
 else
   echo "unsupported combination of os/runtime ${osfull} ${runtime}" >&2
