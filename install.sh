@@ -352,7 +352,7 @@ case $mode in
       fi
 
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: InitConfiguration
 nodeRegistration:
   ${nameline}
@@ -407,7 +407,7 @@ EOF
         usage
       fi
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
@@ -439,7 +439,7 @@ EOF
         usage
       fi
 cat > $kubeadmyaml <<EOF
-apiVersion: kubeadm.k8s.io/v1beta2
+apiVersion: kubeadm.k8s.io/v1beta3
 kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
