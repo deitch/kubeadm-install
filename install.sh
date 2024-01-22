@@ -141,7 +141,8 @@ configure_runtime(){
   local runtime="$1"
   if [ "${runtime}" = "containerd" ]; then
     # remove potential disabled cri line
-    containerd config default | grep -v '^\s*disabled_plugins.*"cri"' > /etc/containerd/config.toml
+    # enable systemdcgroup
+    containerd config default | grep -v '^\s*disabled_plugins.*"cri"' | sed '/SystemdCgroup/s/false/true/' > /etc/containerd/config.toml
     systemctl restart containerd
   fi
 }
@@ -317,7 +318,7 @@ esac
 if [ -n "$dryrun" ]; then
    dryrun "configure_runtime ${runtime}"
 else
-  configure_runtime ${runtime}
+  configure_runtime "${runtime}"
 fi
 
 # reset BEFORE generating kubeconfig or any files
