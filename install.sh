@@ -44,7 +44,7 @@ docker_ubuntu_20_10(){
   # replace focal (20.04) for groovy (20.10) since docker install only available for focal
   echo focal
 }
-docker_22_04(){
+docker_ubuntu_22_04(){
   echo "$(lsb_release -cs)"
 }
 
@@ -59,7 +59,7 @@ deploy_ubuntu(){
   swapoff -a
 
   # get docker install version
-  local dockername="$(docker_${osfull}})"
+  local dockername="$(docker_${osfull})"
   if [ -z "$dockername" ]; then
     echo "unsupported OS ${osfull}" >&2
     exit 1
@@ -284,9 +284,9 @@ command -V "${funcname}" >/dev/null 2>&1 || {
 }
 
 if [ -n "$dryrun" ]; then
-  dryrun "${funcname} ${osfull}" ${arch} ${version}"
-else 
-  ${funcname} ${osfull}" "${arch}" "${version}"
+  dryrun "${funcname} ${osfull} ${arch} ${version}"
+else
+  ${funcname} "${osfull}" "${arch}" "${version}"
 fi
 
 # set system settings
@@ -473,4 +473,3 @@ EOF
      kubeadm join --config=$kubeadmyaml
      ;;
 esac
-
