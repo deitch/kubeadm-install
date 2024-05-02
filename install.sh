@@ -94,7 +94,7 @@ deploy_ubuntu(){
 
   apt-get update -y
   for pkg in kubelet kubeadm kubectl; do
-    apt-get install -y "?and(?exact-name(${pkg}),?version(${aptversion}-*),?architecture(${arch}))"
+    apt-get install -y --allow-change-held-packages "?and(?exact-name(${pkg}),?version(${aptversion}-*),?architecture(${arch}))"
     apt-mark hold ${pkg}
   done
 }
