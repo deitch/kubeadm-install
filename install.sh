@@ -159,7 +159,7 @@ kubeadmversion="kubeadm.k8s.io/v1beta3"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
-default_kubernetes_version="v1.23.4"
+default_kubernetes_version="v1.31.0"
 version=${default_kubernetes_version}
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
