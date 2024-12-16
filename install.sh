@@ -389,10 +389,12 @@ kubernetesVersion: ${version}
 controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
 apiServer:
   extraArgs:
-    cloud-provider: "external"
+  - name: cloud-provider
+    value: "external"
 controllerManager:
   extraArgs:
-    cloud-provider: "external"
+  - name: cloud-provider
+    value: "external"
 EOF
      # do we need to add the advertiseAddress to our local host?
      ping -c 3 -q ${advertiseAddress} && echo OK || ip addr add ${advertiseAddress}/32 dev lo
