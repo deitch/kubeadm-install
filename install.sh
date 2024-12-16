@@ -153,7 +153,7 @@ runtimes="docker containerd"
 # supported OSes
 oses="ubuntu_16_04 ubuntu_18_04 ubuntu_20_04 ubuntu_20_10 ubuntu_22_04 amazon_linux_2"
 # kubeadm API version - in a single var so easy to update
-kubeadmversion="kubeadm.k8s.io/v1beta3"
+kubeadmversion="kubeadm.k8s.io/v1beta4"
 
 # supported modes
 modes="init join worker"
