@@ -377,7 +377,8 @@ nodeRegistration:
   ${nameline}
   criSocket: "$crisock"
   kubeletExtraArgs:
-    cloud-provider: "external"
+  - name: cloud-provider
+    value: "external"
 localAPIEndpoint:
   advertiseAddress: ${localip}
   bindPort: ${bindPort}
@@ -433,7 +434,8 @@ kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
   kubeletExtraArgs:
-    cloud-provider: "external"
+  - name: cloud-provider
+    value: "external"
 discovery:
   bootstrapToken:
     apiServerEndpoint: ${advertise}
@@ -465,7 +467,8 @@ kind: JoinConfiguration
 nodeRegistration:
   criSocket: "$crisock"
   kubeletExtraArgs:
-    cloud-provider: "external"
+  - name: cloud-provider
+    value: "external"
 discovery:
   bootstrapToken:
     apiServerEndpoint: ${advertise}
