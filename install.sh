@@ -47,6 +47,9 @@ docker_ubuntu_20_10(){
 docker_ubuntu_22_04(){
   echo "$(lsb_release -cs)"
 }
+docker_ubuntu_24_04(){
+  echo "$(lsb_release -cs)"
+}
 
 # functions to deploy software to specific OSes
 deploy_ubuntu(){
@@ -151,7 +154,7 @@ configure_runtime(){
 # supported runtimes
 runtimes="docker containerd"
 # supported OSes
-oses="ubuntu_16_04 ubuntu_18_04 ubuntu_20_04 ubuntu_20_10 ubuntu_22_04 amazon_linux_2"
+oses="ubuntu_16_04 ubuntu_18_04 ubuntu_20_04 ubuntu_20_10 ubuntu_22_04 ubuntu_24_04 amazon_linux_2"
 # kubeadm API version - in a single var so easy to update
 kubeadmversion="kubeadm.k8s.io/v1beta4"
 
