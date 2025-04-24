@@ -162,7 +162,7 @@ kubeadmversion="kubeadm.k8s.io/v1beta4"
 modes="init join worker"
 osfile="/etc/os-release"
 kubeadmyaml="/etc/kubernetes/kubeadm.yaml"
-default_kubernetes_version="v1.31.0"
+default_kubernetes_version="v1.33.0"
 version=${default_kubernetes_version}
 curlinstall="curl https://raw.githubusercontent.com/deitch/kubeadm-install/master/install.sh"
 
@@ -391,10 +391,6 @@ apiVersion: ${kubeadmversion}
 kind: ClusterConfiguration
 kubernetesVersion: ${version}
 controlPlaneEndpoint: ${advertiseAddress}:${bindPort}
-apiServer:
-  extraArgs:
-  - name: cloud-provider
-    value: "external"
 controllerManager:
   extraArgs:
   - name: cloud-provider
